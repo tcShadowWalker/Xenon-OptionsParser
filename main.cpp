@@ -1,22 +1,18 @@
 #include <iostream>
-#include <vector>
-#include <cstring>
-#include <memory>
 #include "OptionsParser.h"
+#include <cstring>
 
 #define CREATE_MY_OPTIONLIST(DEF) \
-	DEF(filename, std::string, "some file-path", "abc", Options_Required) \
-	DEF(secret, bool, "some secret option!", true, Options_Hidden) \
-	DEF(flag, bool, "this is just a flag", false, Options_Flag) \
-	DEF(someInt, int, "my int", 123, Options_None) \
-	DEF(myFloat, float, "my float", 45.6f, Options_None) \
+	DEF(filename, std::string, OptionDesc("some file-path", Options_Required), "abc") \
+	DEF(secret, bool, OptionDesc("some secret option!", Options_Hidden), true) \
+	DEF(flag, bool, OptionDesc("this is just a flag", Options_Flag), false) \
+	DEF(someInt, int, OptionDesc("my int", Options_None), 123) \
+	DEF(myFloat, float, OptionDesc("my float", Options_None), 45.6f) \
 	
 
 struct Options : public OptionParserBase
 {
 	CREATE_MY_OPTIONLIST(OPTIONS_DEF_MEMBER)
-	
-	void parse (int argc, char **argv);
 	
 	enum Parameters {
 		CREATE_MY_OPTIONLIST(OPTIONS_DEF_FLAG)
@@ -38,55 +34,27 @@ struct Options : public OptionParserBase
 		: OptionParserBase(appName, version, programOptions) 
 		CREATE_MY_OPTIONLIST(OPTIONS_INIT_VAL)
 		{}
+protected:
+	bool parseLongArgument (const char *argName, const char *argValue);
+	void checkArguments ();
 };
 
 CREATE_MY_OPTIONLIST(OPTIONS_DEF_DEFAULT)
 
-void Options::parse (int argc, char **argv)
+bool Options::parseLongArgument (const char *argName, const char *argValue)
 {
-	static const int _max_arg_name_len = 60;
-	char _opt_arg_name[_max_arg_name_len + 1];
-	
-	for (int iArg = 1; iArg < argc; ++iArg)
-	{
-		const char *_this_arg = argv[iArg];
-		const char *_opt_sepPos = (const char*)memchr (_this_arg, '=', _max_arg_name_len);
-		if (_opt_sepPos) {
-			memcpy (_opt_arg_name, _this_arg, _opt_sepPos - _this_arg);
-			_opt_arg_name[_opt_sepPos - _this_arg] = '\0';
-		} else {
-			++iArg;
-		}
-		const char *argValue = (_opt_sepPos) ? _opt_sepPos+1 : argv[iArg];
-		CREATE_MY_OPTIONLIST(OPTIONS_DEF_DO_PARSE)
-		
-		if ( (programOptions & OptionParser_NoHelp) == 0 && strcmp (_opt_arg_name, "--help") == 0) {
-			printHelp (std::cout);
-		} else if ( (programOptions & OptionParser_NoVersion) == 0 && strcmp (_opt_arg_name, "--version") == 0) {
-			std::cout << programName << " - " << programVersion << std::endl;
-		} else {
-			std::cerr << "Invalid parameter: " << _opt_arg_name << std::endl;
-		}
+	CREATE_MY_OPTIONLIST(OPTIONS_DEF_DO_PARSE)
+	/* implicit else: */ {
+		return false;
 	}
+	return true;
+}
+
+void Options::checkArguments () {
 	CREATE_MY_OPTIONLIST(OPTIONS_CHECK_REQUIRED_GIVEN)
 }
 
-/*struct MyOptionsPrinter {
-	void operator() (const char *argName, const char *, const std::string &val, const std::string &, unsigned int flags) {
-		std::cout << argName << " = \"" << val << "\"\n";
-	}
-	void operator() (const char *argName, const char *, int val, int, unsigned int flags) {
-		std::cout << argName << " = " << val << "\n";
-	}
-	void operator() (const char *argName, const char *, float val, float, unsigned int flags) {
-		std::cout << argName << " = " << val << "\n";
-	}
-	void operator() (const char *argName, const char *, bool val, bool, unsigned int flags) {
-		std::cout << argName << " = " << val << "\n";
-	}
-};*/
-
-#define PRINT_MY_OPTION(arg, type, desc, def, flags) \
+#define PRINT_MY_OPTION(arg, type, desc, def) \
 	if (!opt.has_##arg()) \
 		std::cout << "'" << _OPTIONS_str(arg) << "' not given - default value: \"" << opt.arg << "\"\n";  \
 	else \
@@ -98,8 +66,6 @@ int main(int argc, char **argv) {
 	
 	opt.parse (argc, argv);
 	
-	//MyOptionsPrinter printer;
-	//opt.for_each_option (printer);
 	CREATE_MY_OPTIONLIST(PRINT_MY_OPTION)
 	
 	return 0;
