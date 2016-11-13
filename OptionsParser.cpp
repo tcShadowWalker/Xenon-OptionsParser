@@ -120,7 +120,7 @@ OptionParserBase::ParseResult OptionParserBase::parse (int argc, char **argv)
 			const char *argValue = (sepPos) ? sepPos+1 : ((argc > iArg+1) ? argv[iArg+1] : NULL);
 			OptionDesc selectedArg (NULL, 0);
 			
-			if (parseLongArgument (thisArg, argValue, &selectedArg)) {
+			if (_opt_parseLongArgument (thisArg, argValue, &selectedArg)) {
 				// Ok.
 				assert (selectedArg.description != NULL);
 				if (!sepPos && !(selectedArg.flags & Options_Flag)) // Does consume additional arg
@@ -143,7 +143,7 @@ OptionParserBase::ParseResult OptionParserBase::parse (int argc, char **argv)
 			if (thisArg[2] == '\0') { // one short-hand argument. MAY Have a parameter
 				const char *argValue = (argc > iArg+1) ? argv[iArg+1] : NULL;
 				OptionDesc selectedArg (NULL, 0);
-				if (!parseShortArgument (thisArg[1], argValue, &selectedArg)) {
+				if (!_opt_parseShortArgument (thisArg[1], argValue, &selectedArg)) {
 					if (!(programOptions & OptionParser_IgnoreUnknown))
 						throw ArgumentParserError(std::string("Unknown short-form argument: ") + thisArg[1]);
 				}
@@ -153,7 +153,7 @@ OptionParserBase::ParseResult OptionParserBase::parse (int argc, char **argv)
 			else {
 				for (const char *s = &thisArg[1]; *s; ++s) {
 					OptionDesc selectedArg (NULL, 0);
-					if (!parseShortArgument (*s, NULL, &selectedArg)) {
+					if (!_opt_parseShortArgument (*s, NULL, &selectedArg)) {
 						if (!(programOptions & OptionParser_IgnoreUnknown))
 							throw ArgumentParserError(std::string("Unknown short-form argument: ") + *s);
 					}
@@ -167,6 +167,6 @@ OptionParserBase::ParseResult OptionParserBase::parse (int argc, char **argv)
 			positionalArgs[numPositionalArgs++] = iArg;
 		}
 	}
-	this->checkArguments(argv, numPositionalArgs, positionalArgs);
+	this->_opt_checkArguments(argv, numPositionalArgs, positionalArgs);
 	return PARSE_OK;
 }

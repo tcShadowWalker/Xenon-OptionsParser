@@ -143,9 +143,9 @@ protected:
 	
 	void printHelpHead (std::ostream &out);
 	
-	virtual bool parseLongArgument (const char *argName, const char *argValue, OptionDesc *selectedArg) = 0;
-	virtual bool parseShortArgument (char arg, const char *argValue, OptionDesc *selectedArg) = 0;
-	virtual void checkArguments (char **argv, std::uint32_t numPositionalArgs, std::uint16_t *positionalArgs) = 0;
+	virtual bool _opt_parseLongArgument (const char *argName, const char *argValue, OptionDesc *selectedArg) = 0;
+	virtual bool _opt_parseShortArgument (char arg, const char *argValue, OptionDesc *selectedArg) = 0;
+	virtual void _opt_checkArguments (char **argv, std::uint32_t numPositionalArgs, std::uint16_t *positionalArgs) = 0;
 };
 
 /**
@@ -156,7 +156,7 @@ struct OPTIONS_CLASS_NAME : public OptionParserBase     \
 {     \
 	OPTION_LIST_MACRO_NAME(OPTIONS_DEF_MEMBER)     \
 	     \
-	enum Parameters {     \
+	enum _opt_Parameters {     \
 		OPTION_LIST_MACRO_NAME(OPTIONS_DEF_FLAG)     \
 	};     \
 	     \
@@ -175,30 +175,30 @@ struct OPTIONS_CLASS_NAME : public OptionParserBase     \
 		OPTION_LIST_MACRO_NAME(OPTIONS_INIT_VAL)     \
 		{}     \
 protected:     \
-	bool parseLongArgument (const char *argName, const char *argValue, OptionDesc *selectedArg);     \
-	bool parseShortArgument (char arg, const char *argValue, OptionDesc *selectedArg);     \
-	void checkArguments (char **argv, std::uint32_t numPositionalArgs, std::uint16_t *positionalArgs);     \
+	bool _opt_parseLongArgument (const char *argName, const char *argValue, OptionDesc *selectedArg);     \
+	bool _opt_parseShortArgument (char arg, const char *argValue, OptionDesc *selectedArg);     \
+	void _opt_checkArguments (char **argv, std::uint32_t numPositionalArgs, std::uint16_t *positionalArgs);     \
 };
 
 /**
  * @brief Provide parser implementation code for program options
  */
 #define DEFINE_PROGRAM_OPTIONS_IMPL(OPTIONS_CLASS_NAME, OPTION_LIST_MACRO_NAME)     \
-bool OPTIONS_CLASS_NAME::parseLongArgument (const char *argName, const char *argValue, OptionDesc *selectedArg) {      \
+bool OPTIONS_CLASS_NAME::_opt_parseLongArgument (const char *argName, const char *argValue, OptionDesc *selectedArg) {      \
 	OPTION_LIST_MACRO_NAME(OPTIONS_DEF_DO_PARSE)      \
 	/* implicit else: */ {      \
 		return false;      \
 	}      \
 	return true;      \
 }      \
-bool OPTIONS_CLASS_NAME::parseShortArgument (char arg, const char *argValue, OptionDesc *selectedArg) {      \
+bool OPTIONS_CLASS_NAME::_opt_parseShortArgument (char arg, const char *argValue, OptionDesc *selectedArg) {      \
 	OPTION_LIST_MACRO_NAME(OPTIONS_DEF_DO_PARSE_SHORT)      \
 	/* implicit else: */ {      \
 		return false;      \
 	}      \
 	return true;      \
 }      \
-void OPTIONS_CLASS_NAME::checkArguments (char **argv, std::uint32_t numPositionalArgs, std::uint16_t *positionalArgs) {      \
+void OPTIONS_CLASS_NAME::_opt_checkArguments (char **argv, std::uint32_t numPositionalArgs, std::uint16_t *positionalArgs) {      \
 	unsigned int nextPositionalArg = 0; \
 	OPTION_LIST_MACRO_NAME(OPTIONS_CHECK_ARGUMENTS)      \
 	if ((nextPositionalArg < numPositionalArgs) && !(programOptions & OptionParser_IgnoreUnknown))  \
