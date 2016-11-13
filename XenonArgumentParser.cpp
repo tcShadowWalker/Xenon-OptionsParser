@@ -1,7 +1,5 @@
+#include "XenonArgumentParser.h"
 #include <stdlib.h>
-#include <string>
-#include "OptionsParser.h"
-#include <stdexcept>
 #include <iostream>
 #include <cstring>
 #include <cassert>
@@ -17,13 +15,13 @@ void OptionParserBase::_opt_parse_arg ( std::string &p, const char *argValue, co
 	p.assign (argValue);
 }
 
-void OptionParserBase::_opt_parse_arg ( std::int32_t &p, const char *argValue, const OptionDesc &desc ) {
-	std::int64_t tmp;
+void OptionParserBase::_opt_parse_arg ( int32_t &p, const char *argValue, const OptionDesc &desc ) {
+	int64_t tmp;
 	_opt_parse_arg (tmp, argValue, desc);
 	p = tmp;
 }
 
-void OptionParserBase::_opt_parse_arg ( std::int64_t &p, const char *argValue, const OptionDesc &desc ) {
+void OptionParserBase::_opt_parse_arg ( int64_t &p, const char *argValue, const OptionDesc &desc ) {
 	if (!argValue)
 		throw ArgumentParserError ( std::string("OptionsParser: Missing argument for parameter '") + std::string(desc.name));
 	char *e;
@@ -65,7 +63,7 @@ void OptionParserBase::_opt_parse_arg ( bool &p, const char *argValue, const Opt
 
 //
 
-template<class T> void printHelpImpl (std::ostream &out, std::uint32_t programOptions, bool full,
+template<class T> void printHelpImpl (std::ostream &out, uint32_t programOptions, bool full,
 				      const char *argName, const OptionDesc &desc, const T &defVal, char delim = '\0')
 {
 	if ((desc.flags & Options_Hidden) && !full)
@@ -90,34 +88,34 @@ template<class T> void printHelpImpl (std::ostream &out, std::uint32_t programOp
 }
 
 void OptionParserBase::HelpPrinter::operator() (const char *argName, const OptionDesc &desc, const std::string &, const std::string &defVal) {
-	printHelpImpl (out, programOptions, full, argName, desc, defVal, '"');
+	printHelpImpl (out, appInfo.programOptions, full, argName, desc, defVal, '"');
 }
 void OptionParserBase::HelpPrinter::operator() (const char *argName, const OptionDesc &desc, int, int defVal) {
-	printHelpImpl (out, programOptions, full, argName, desc, defVal);
+	printHelpImpl (out, appInfo.programOptions, full, argName, desc, defVal);
 }
 void OptionParserBase::HelpPrinter::operator() (const char *argName, const OptionDesc &desc, float, float defVal) {
-	printHelpImpl (out, programOptions, full, argName, desc, defVal);
+	printHelpImpl (out, appInfo.programOptions, full, argName, desc, defVal);
 }
 void OptionParserBase::HelpPrinter::operator() (const char *argName, const OptionDesc &desc, bool, bool defVal) {
-	printHelpImpl (out, programOptions, full, argName, desc, defVal);
+	printHelpImpl (out, appInfo.programOptions, full, argName, desc, defVal);
 }
 
-void OptionParserBase::printHelpHead (std::ostream &out) {
-	out << programName << " " << programVersion << std::endl;
-	if (programHelpTextHeader)
-		out << programHelpTextHeader;
+void OptionParserBase::printHelpHead (std::ostream &out, const AppInformation &appInfos) {
+	out << appInfos.programName << " " << appInfos.programVersion << std::endl;
+	if (appInfos.programHelpTextHeader)
+		out << appInfos.programHelpTextHeader;
 	out << std::endl;
 }
 
 //
 
-OptionParserBase::ParseResult OptionParserBase::parse (int argc, char **argv)
+OptionParserBase::ParseResult OptionParserBase::parse (int argc, char **argv, const AppInformation &appInfos)
 {
 	static const int maxArgLen = 63, maxPosArgs = 32;
 	char argName[maxArgLen + 1];
 	
-	std::uint16_t positionalArgs[ maxPosArgs ];
-	std::uint32_t numPositionalArgs = 0U;
+	uint16_t positionalArgs[ maxPosArgs ];
+	uint32_t numPositionalArgs = 0U;
 	for (int iArg = 1; iArg < argc; ++iArg)
 	{
 		const char *thisArg = argv[iArg];
@@ -143,17 +141,17 @@ OptionParserBase::ParseResult OptionParserBase::parse (int argc, char **argv)
 				assert (selectedArg.description != NULL);
 				if (!sepPos && !(selectedArg.flags & Options_Flag)) // Does consume additional arg
 					++iArg;
-			} else if ( (programOptions & NoHelp) == 0 && strcmp (thisArg, "help") == 0) {
-				printHelp (std::cout, false);
+			} else if ( (appInfos.programOptions & NoHelp) == 0 && strcmp (thisArg, "help") == 0) {
+				printHelp (std::cout, false, appInfos);
 				return PARSE_TERMINATE;
-			} else if ( (programOptions & NoHelp) == 0 && strcmp (thisArg, "full-help") == 0) {
-				printHelp (std::cout, (programOptions & HideHidden) == 0);
+			} else if ( (appInfos.programOptions & NoHelp) == 0 && strcmp (thisArg, "full-help") == 0) {
+				printHelp (std::cout, (appInfos.programOptions & HideHidden) == 0, appInfos);
 				return PARSE_TERMINATE;
-			} else if ( (programOptions & NoVersion) == 0 && strcmp (thisArg, "version") == 0) {
-				std::cout << programName << " - " << programVersion << std::endl;
+			} else if ( (appInfos.programOptions & NoVersion) == 0 && strcmp (thisArg, "version") == 0) {
+				std::cout << appInfos.programName << " - " << appInfos.programVersion << std::endl;
 				return PARSE_TERMINATE;
 			} else {
-				if (!(programOptions & IgnoreUnknown))
+				if (!(appInfos.programOptions & IgnoreUnknown))
 					throw ArgumentParserError(std::string("Unknown argument: ") + thisArg);
 			}
 		} else if (thisArg[0] == '-' && thisArg[1] != '-') // Short option
@@ -162,7 +160,7 @@ OptionParserBase::ParseResult OptionParserBase::parse (int argc, char **argv)
 				const char *argValue = (argc > iArg+1) ? argv[iArg+1] : NULL;
 				OptionDesc selectedArg (NULL, 0);
 				if (!_opt_parseShortArgument (thisArg[1], argValue, &selectedArg)) {
-					if (!(programOptions & IgnoreUnknown))
+					if (!(appInfos.programOptions & IgnoreUnknown))
 						throw ArgumentParserError(std::string("Unknown short-form argument: ") + thisArg[1]);
 				}
 				if (!(selectedArg.flags & Options_Flag) && argValue)
@@ -172,7 +170,7 @@ OptionParserBase::ParseResult OptionParserBase::parse (int argc, char **argv)
 				for (const char *s = &thisArg[1]; *s; ++s) {
 					OptionDesc selectedArg (NULL, 0);
 					if (!_opt_parseShortArgument (*s, NULL, &selectedArg)) {
-						if (!(programOptions & IgnoreUnknown))
+						if (!(appInfos.programOptions & IgnoreUnknown))
 							throw ArgumentParserError(std::string("Unknown short-form argument: ") + *s);
 					}
 					assert (selectedArg.flags & Options_Flag);
@@ -185,7 +183,7 @@ OptionParserBase::ParseResult OptionParserBase::parse (int argc, char **argv)
 			positionalArgs[numPositionalArgs++] = iArg;
 		}
 	}
-	this->_opt_checkArguments(argv, numPositionalArgs, positionalArgs);
+	this->_opt_checkArguments(argv, numPositionalArgs, positionalArgs, appInfos);
 	return PARSE_OK;
 }
 
