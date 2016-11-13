@@ -31,10 +31,13 @@ XE_DEFINE_PROGRAM_OPTIONS_IMPL(MyOptions, CREATE_MY_OPTIONLIST);
 
 int main(int argc, char **argv) {
 	MyOptions opt;
-	Xenon::ArgumentParser::AppInformation appInfos ("ExampleOptionParser", "0.1", Xenon::ArgumentParser::CompactHelp);
-	appInfos.setHelpText("A simple program options parser example.\n");
-	if (opt.parse (argc, argv, appInfos) == MyOptions::PARSE_TERMINATE)
-		return 0;
+	
+	{
+		MyOptions::Parser parser ("ExampleOptionParser", "0.1", Xenon::ArgumentParser::CompactHelp);
+		parser.setHelpText("A simple program options parser example.\n");
+		if (parser.parse (opt, argc, argv) == MyOptions::Parser::PARSE_TERMINATE)
+			return 0;
+	}
 	
 	//CREATE_MY_OPTIONLIST(PRINT_MY_OPTION)
 	for (const std::string &file : opt.filename) {

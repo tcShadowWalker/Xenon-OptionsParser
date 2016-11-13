@@ -117,15 +117,11 @@ struct OptionParserBase
 		PARSE_TERMINATE = 2,
 	};
 	
-	ParseResult parse (int argc, char **argv, const AppInformation &appInfos);
 	virtual void printHelp (std::ostream &out, bool full, const AppInformation &appInfo) = 0;
-	
-	OptionParserBase () : setParameters(0) { }
 protected:
-	uint64_t setParameters;
-	
 	void printHelpHead (std::ostream &out, const AppInformation &appInfos);
 	
+	ParseResult parse (int argc, char **argv, const AppInformation &appInfos);
 	virtual bool _opt_parseLongArgument (const char *argName, const char *argValue, OptionDesc *selectedArg) = 0;
 	virtual bool _opt_parseShortArgument (char arg, const char *argValue, OptionDesc *selectedArg) = 0;
 	virtual void _opt_checkArguments (char **argv, uint32_t numPositionalArgs, uint16_t *positionalArgs, const AppInformation &appInfo) = 0;
@@ -135,9 +131,11 @@ protected:
  * @brief Main macro to define list of program options
  */
 #define XE_DECLARE_PROGRAM_OPTIONS(OPTIONS_CLASS_NAME, OPTION_LIST_MACRO_NAME)      \
-struct OPTIONS_CLASS_NAME : public Xenon::ArgumentParser::OptionParserBase     \
+struct OPTIONS_CLASS_NAME##_Parser; \
+struct OPTIONS_CLASS_NAME \
 {     \
 	typedef Xenon::ArgumentParser::OptionDesc OptionDesc; \
+	uint64_t setParameters; \
 	OPTION_LIST_MACRO_NAME(XE_ARG_PARSE_OPTIONS_DEF_MEMBER)     \
 	\
 	enum _opt_Parameters {     \
@@ -150,19 +148,33 @@ struct OPTIONS_CLASS_NAME : public Xenon::ArgumentParser::OptionParserBase     \
 		OPTION_LIST_MACRO_NAME(XE_ARG_PARSE_OPTIONS_DEF_OPERATION)     \
 	}     \
 	\
+	OPTIONS_CLASS_NAME ()     \
+		: setParameters(0) OPTION_LIST_MACRO_NAME(XE_ARG_PARSE_OPTIONS_INIT_VAL)   {}     \
+	typedef OPTIONS_CLASS_NAME##_Parser Parser; \
+}; \
+\
+struct OPTIONS_CLASS_NAME##_Parser : public Xenon::ArgumentParser::OptionParserBase, public Xenon::ArgumentParser::AppInformation { \
+	\
+	typedef Xenon::ArgumentParser::OptionDesc OptionDesc; \
 	void printHelp (std::ostream &out, bool full, const Xenon::ArgumentParser::AppInformation &appInfo) {     \
 		using namespace Xenon::ArgumentParser; \
 		printHelpHead(out, appInfo);     \
 		HelpPrinter printer (out, appInfo, full); \
-		for_each_option(printer);     \
+		data->for_each_option(printer);     \
 		if (appInfo.programHelpTextTail) \
 			out << appInfo.programHelpTextTail; \
 		out << std::endl; \
 	}     \
 	\
-	OPTIONS_CLASS_NAME ()     \
-		: OptionParserBase() OPTION_LIST_MACRO_NAME(XE_ARG_PARSE_OPTIONS_INIT_VAL)   {}     \
+	ParseResult parse (OPTIONS_CLASS_NAME &opts, int argc, char **argv) { \
+		this->data = &opts; \
+		return this->OptionParserBase::parse (argc, argv, *this); \
+	} \
+	OPTIONS_CLASS_NAME##_Parser (const char *appName, const char *version, unsigned int programOptions = 0) \
+		: AppInformation(appName, version, programOptions) { } \
 protected:     \
+	OPTIONS_CLASS_NAME *data; \
+	\
 	bool _opt_parseLongArgument (const char *argName, const char *argValue, OptionDesc *selectedArg);     \
 	bool _opt_parseShortArgument (char arg, const char *argValue, OptionDesc *selectedArg);     \
 	void _opt_checkArguments (char **argv, uint32_t numPositionalArgs, uint16_t *positionalArgs, const Xenon::ArgumentParser::AppInformation &);     \
@@ -172,7 +184,7 @@ protected:     \
  * @brief Provide parser implementation code for program options
  */
 #define XE_DEFINE_PROGRAM_OPTIONS_IMPL(OPTIONS_CLASS_NAME, OPTION_LIST_MACRO_NAME)     \
-bool OPTIONS_CLASS_NAME::_opt_parseLongArgument (const char *argName, const char *argValue, OptionDesc *selectedArg) {      \
+bool OPTIONS_CLASS_NAME##_Parser::_opt_parseLongArgument (const char *argName, const char *argValue, OptionDesc *selectedArg) {      \
 	using namespace Xenon::ArgumentParser; \
 	OPTION_LIST_MACRO_NAME(XE_ARG_PARSE_OPTIONS_DEF_DO_PARSE)      \
 	/* implicit else: */ {      \
@@ -180,7 +192,7 @@ bool OPTIONS_CLASS_NAME::_opt_parseLongArgument (const char *argName, const char
 	}      \
 	return true;      \
 }      \
-bool OPTIONS_CLASS_NAME::_opt_parseShortArgument (char arg, const char *argValue, OptionDesc *selectedArg) {      \
+bool OPTIONS_CLASS_NAME##_Parser::_opt_parseShortArgument (char arg, const char *argValue, OptionDesc *selectedArg) {      \
 	using namespace Xenon::ArgumentParser; \
 	OPTION_LIST_MACRO_NAME(XE_ARG_PARSE_OPTIONS_DEF_DO_PARSE_SHORT)      \
 	/* implicit else: */ {      \
@@ -188,7 +200,7 @@ bool OPTIONS_CLASS_NAME::_opt_parseShortArgument (char arg, const char *argValue
 	}      \
 	return true;      \
 }      \
-void OPTIONS_CLASS_NAME::_opt_checkArguments (char **_opt_argv, uint32_t _opt_numPositionalArgs, \
+void OPTIONS_CLASS_NAME##_Parser::_opt_checkArguments (char **_opt_argv, uint32_t _opt_numPositionalArgs, \
 		uint16_t *_opt_positionalArgs, const Xenon::ArgumentParser::AppInformation &appInfo) \
 {      \
 	using namespace Xenon::ArgumentParser; \
@@ -215,25 +227,25 @@ void OPTIONS_CLASS_NAME::_opt_checkArguments (char **_opt_argv, uint32_t _opt_nu
 #define XE_ARG_PARSE_OPTIONS_INIT_VAL(name, type, desc, def) , name(def)
 
 #define XE_ARG_PARSE_OPTIONS_DEF_DO_PARSE(name, type, desc, def) if ( strcmp (argName, _OPTIONS_str(name)) == 0) { \
-		this->_opt_parse_arg ( this->name, argValue, desc.setName( _OPTIONS_str(name) ) ); \
-		this->setParameters |= (1U << PARAM_##name); \
+		this->_opt_parse_arg ( this->data->name, argValue, desc.setName( _OPTIONS_str(name) ) ); \
+		this->data->setParameters |= (1U << this->data->PARAM_##name); \
 		*selectedArg = desc; \
 	} else
 
 #define XE_ARG_PARSE_OPTIONS_DEF_DO_PARSE_SHORT(name, type, desc, def) if ( arg == desc.shortOption ) { \
-		this->_opt_parse_arg ( this->name, argValue, desc.setName( _OPTIONS_str(name) ) ); \
-		this->setParameters |= (1U << PARAM_##name); \
+		this->_opt_parse_arg ( this->data->name, argValue, desc.setName( _OPTIONS_str(name) ) ); \
+		this->data->setParameters |= (1U << this->data->PARAM_##name); \
 		*selectedArg = desc; \
 	} else
 
 #define XE_ARG_PARSE_OPTIONS_CHECK_ARGUMENTS(name, type, desc, def) \
-	if (((desc.flags) & Options_Positional) && (!has_##name() || (desc.flags & Options_Multiple)) && _opt_nextPositionalArg < _opt_numPositionalArgs) { \
+	if (((desc.flags) & Options_Positional) && (!data->has_##name() || (desc.flags & Options_Multiple)) && _opt_nextPositionalArg < _opt_numPositionalArgs) { \
 		do { \
-			this->_opt_parse_arg ( this->name, _opt_argv[_opt_positionalArgs[_opt_nextPositionalArg++]], desc.setName( _OPTIONS_str(name) ) ); \
+			this->_opt_parse_arg ( this->data->name, _opt_argv[_opt_positionalArgs[_opt_nextPositionalArg++]], desc.setName( _OPTIONS_str(name) ) ); \
 		} while ((_opt_nextPositionalArg < _opt_numPositionalArgs) && (desc.flags & Options_Multiple)); \
-		this->setParameters |= (1U << PARAM_##name); \
+		this->data->setParameters |= (1U << this->data->PARAM_##name); \
 	} \
-	if (((desc.flags) & Options_Required) && !has_##name()) { \
+	if (((desc.flags) & Options_Required) && !data->has_##name()) { \
 		throw RequiredArgumentMissing( _OPTIONS_str(name) ); }
 
 
