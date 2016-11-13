@@ -7,6 +7,9 @@
 #include <cassert>
 #include <memory>
 
+namespace Xenon {
+namespace ArgumentParser {
+
 void OptionParserBase::_opt_parse_arg ( std::string &p, const char *argValue, const OptionDesc &desc )
 {
 	if (!argValue)
@@ -81,7 +84,7 @@ template<class T> void printHelpImpl (std::ostream &out, std::uint32_t programOp
 	const int nbytes = (req[0] != '\0') + 2 + (desc.shortOption ? 4 : 0) + 2 + strlen(argName);
 	out << &buf[ std::min (nbytes, align) ] << desc.description 
 		<< " (" << &req[1] << rep << "default: " << delim << defVal << delim << ")\n";
-	if (!(programOptions & OptionParser_CompactHelp))
+	if (!(programOptions & CompactHelp))
 		out << '\n';
 	
 }
@@ -110,7 +113,6 @@ void OptionParserBase::printHelpHead (std::ostream &out) {
 
 OptionParserBase::ParseResult OptionParserBase::parse (int argc, char **argv)
 {
-	this->setParameters = 0;
 	static const int maxArgLen = 63, maxPosArgs = 32;
 	char argName[maxArgLen + 1];
 	
@@ -141,17 +143,17 @@ OptionParserBase::ParseResult OptionParserBase::parse (int argc, char **argv)
 				assert (selectedArg.description != NULL);
 				if (!sepPos && !(selectedArg.flags & Options_Flag)) // Does consume additional arg
 					++iArg;
-			} else if ( (programOptions & OptionParser_NoHelp) == 0 && strcmp (thisArg, "help") == 0) {
+			} else if ( (programOptions & NoHelp) == 0 && strcmp (thisArg, "help") == 0) {
 				printHelp (std::cout, false);
 				return PARSE_TERMINATE;
-			} else if ( (programOptions & OptionParser_NoHelp) == 0 && strcmp (thisArg, "full-help") == 0) {
-				printHelp (std::cout, (programOptions & OptionParser_HideHidden) == 0);
+			} else if ( (programOptions & NoHelp) == 0 && strcmp (thisArg, "full-help") == 0) {
+				printHelp (std::cout, (programOptions & HideHidden) == 0);
 				return PARSE_TERMINATE;
-			} else if ( (programOptions & OptionParser_NoVersion) == 0 && strcmp (thisArg, "version") == 0) {
+			} else if ( (programOptions & NoVersion) == 0 && strcmp (thisArg, "version") == 0) {
 				std::cout << programName << " - " << programVersion << std::endl;
 				return PARSE_TERMINATE;
 			} else {
-				if (!(programOptions & OptionParser_IgnoreUnknown))
+				if (!(programOptions & IgnoreUnknown))
 					throw ArgumentParserError(std::string("Unknown argument: ") + thisArg);
 			}
 		} else if (thisArg[0] == '-' && thisArg[1] != '-') // Short option
@@ -160,7 +162,7 @@ OptionParserBase::ParseResult OptionParserBase::parse (int argc, char **argv)
 				const char *argValue = (argc > iArg+1) ? argv[iArg+1] : NULL;
 				OptionDesc selectedArg (NULL, 0);
 				if (!_opt_parseShortArgument (thisArg[1], argValue, &selectedArg)) {
-					if (!(programOptions & OptionParser_IgnoreUnknown))
+					if (!(programOptions & IgnoreUnknown))
 						throw ArgumentParserError(std::string("Unknown short-form argument: ") + thisArg[1]);
 				}
 				if (!(selectedArg.flags & Options_Flag) && argValue)
@@ -170,7 +172,7 @@ OptionParserBase::ParseResult OptionParserBase::parse (int argc, char **argv)
 				for (const char *s = &thisArg[1]; *s; ++s) {
 					OptionDesc selectedArg (NULL, 0);
 					if (!_opt_parseShortArgument (*s, NULL, &selectedArg)) {
-						if (!(programOptions & OptionParser_IgnoreUnknown))
+						if (!(programOptions & IgnoreUnknown))
 							throw ArgumentParserError(std::string("Unknown short-form argument: ") + *s);
 					}
 					assert (selectedArg.flags & Options_Flag);
@@ -185,4 +187,7 @@ OptionParserBase::ParseResult OptionParserBase::parse (int argc, char **argv)
 	}
 	this->_opt_checkArguments(argv, numPositionalArgs, positionalArgs);
 	return PARSE_OK;
+}
+
+}
 }

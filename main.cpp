@@ -20,8 +20,8 @@
 	DEF(lazy, bool, OptionDesc("Use lazy", Options_Flag), false) \
 	
 
-DECLARE_PROGRAM_OPTIONS(MyOptions, CREATE_MY_OPTIONLIST);
-DEFINE_PROGRAM_OPTIONS_IMPL(MyOptions, CREATE_MY_OPTIONLIST);
+XE_DECLARE_PROGRAM_OPTIONS(MyOptions, CREATE_MY_OPTIONLIST);
+XE_DEFINE_PROGRAM_OPTIONS_IMPL(MyOptions, CREATE_MY_OPTIONLIST);
 
 #define PRINT_MY_OPTION(arg, type, desc, def) \
 	if (!opt.has_##arg()) \
@@ -30,7 +30,7 @@ DEFINE_PROGRAM_OPTIONS_IMPL(MyOptions, CREATE_MY_OPTIONLIST);
 		std::cout << "'" _OPTIONS_str(arg) << "' = \"" << opt.arg << "\"\n";
 
 int main(int argc, char **argv) {
-	MyOptions opt ("ExampleOptionParser", "0.1", OptionParser_CompactHelp);
+	MyOptions opt ("ExampleOptionParser", "0.1", Xenon::ArgumentParser::CompactHelp);
 	opt.setHelpText("A simple program options parser example.\n");
 	if (opt.parse (argc, argv) == MyOptions::PARSE_TERMINATE)
 		return 0;
