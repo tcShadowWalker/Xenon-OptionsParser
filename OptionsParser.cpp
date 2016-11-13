@@ -62,25 +62,41 @@ void OptionParserBase::_opt_parse_arg ( bool &p, const char *argValue, const Opt
 
 //
 
-template<class T> void printHelpImpl (std::ostream &out, bool full, const char *argName, const OptionDesc &desc, const T &defVal, char delim = '\0') {
+template<class T> void printHelpImpl (std::ostream &out, std::uint32_t programOptions, bool full,
+				      const char *argName, const OptionDesc &desc, const T &defVal, char delim = '\0')
+{
 	if ((desc.flags & Options_Hidden) && !full)
 		return;
-	const char *req = (desc.flags & Options_Required) ? "*required; " : "\0\0";
+	const char *req = (desc.flags & Options_Required) ? "*required; " : " \0";
 	const char *rep = (desc.flags & Options_Multiple) ? "multiple; " : "";
-	out << "\t" << req[0] << argName << "\t\t" << desc.description << " (" << &req[1] << rep << "default: " << delim << defVal << delim << ")\n" << std::endl;
+	out << ' ' << req[0] << ' ';
+	if (desc.shortOption)
+		out << "-" << desc.shortOption << ", ";
+	const int align = 28;
+	char buf[align + 1];
+	memset (buf, ' ', align);
+	buf[align] = '\0';
+	out <<  "--" << argName;
+	
+	const int nbytes = (req[0] != '\0') + 2 + (desc.shortOption ? 4 : 0) + 2 + strlen(argName);
+	out << &buf[ std::min (nbytes, align) ] << desc.description 
+		<< " (" << &req[1] << rep << "default: " << delim << defVal << delim << ")\n";
+	if (!(programOptions & OptionParser_CompactHelp))
+		out << '\n';
+	
 }
 
 void OptionParserBase::HelpPrinter::operator() (const char *argName, const OptionDesc &desc, const std::string &, const std::string &defVal) {
-	printHelpImpl (out, full, argName, desc, defVal, '"');
+	printHelpImpl (out, programOptions, full, argName, desc, defVal, '"');
 }
 void OptionParserBase::HelpPrinter::operator() (const char *argName, const OptionDesc &desc, int, int defVal) {
-	printHelpImpl (out, full, argName, desc, defVal);
+	printHelpImpl (out, programOptions, full, argName, desc, defVal);
 }
 void OptionParserBase::HelpPrinter::operator() (const char *argName, const OptionDesc &desc, float, float defVal) {
-	printHelpImpl (out, full, argName, desc, defVal);
+	printHelpImpl (out, programOptions, full, argName, desc, defVal);
 }
 void OptionParserBase::HelpPrinter::operator() (const char *argName, const OptionDesc &desc, bool, bool defVal) {
-	printHelpImpl (out, full, argName, desc, defVal);
+	printHelpImpl (out, programOptions, full, argName, desc, defVal);
 }
 
 void OptionParserBase::printHelpHead (std::ostream &out) {

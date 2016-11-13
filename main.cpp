@@ -2,6 +2,9 @@
 #include "OptionsParser.h"
 #include <cstring>
 
+// TODO: Groups!
+// TODO: Modes
+
 #define CREATE_MY_OPTIONLIST(DEF) \
 	DEF(filename, std::vector<std::string>, OptionDesc("some file-path", Options_Required | Options_Multiple | Options_Positional, 'f'), std::vector<std::string>()) \
 	DEF(path, std::string, OptionDesc("base path", Options_None), "") \
@@ -12,6 +15,8 @@
 	DEF(flag, bool, OptionDesc("this is just a flag", Options_Flag, 'f'), false) \
 	DEF(someInt, int, OptionDesc("my int", Options_None), 123) \
 	DEF(myFloat, float, OptionDesc("my float", Options_None), 45.6f) \
+	\
+	OPTIONS_DEF_GROUP("Performance optionss") \
 	DEF(lazy, bool, OptionDesc("Use lazy", Options_Flag), false) \
 	
 
@@ -25,7 +30,7 @@ DEFINE_PROGRAM_OPTIONS_IMPL(MyOptions, CREATE_MY_OPTIONLIST);
 		std::cout << "'" _OPTIONS_str(arg) << "' = \"" << opt.arg << "\"\n";
 
 int main(int argc, char **argv) {
-	MyOptions opt ("ExampleOptionParser", "0.1");
+	MyOptions opt ("ExampleOptionParser", "0.1", OptionParser_CompactHelp);
 	opt.setHelpText("A simple program options parser example.\n");
 	if (opt.parse (argc, argv) == MyOptions::PARSE_TERMINATE)
 		return 0;

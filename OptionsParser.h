@@ -28,6 +28,8 @@ enum OptionParserFlags {
 	OptionParser_HideHidden     = 1U << 2,
 	/// Don't abort parsing when encountering unknown arguments
 	OptionParser_IgnoreUnknown  = 1U << 3,
+	/// When printing the help-page, use only one line per argument
+	OptionParser_CompactHelp    = 1U << 4,
 };
 
 struct OptionDesc {
@@ -45,6 +47,10 @@ struct OptionDesc {
 #define _OPTIONS_xstr(s) str(s)
 #define _OPTIONS_str(s) #s
 
+/// PUBLIC:
+#define OPTIONS_DEF_GROUP(group_name)
+
+/// PRIVATE:
 #define OPTIONS_DEF_MEMBER(name, type, desc, def) type name; \
 		bool has_##name () const { return setParameters & (1U << PARAM_##name); }
 
@@ -113,6 +119,7 @@ struct OptionParserBase
 		void operator() (const char *argName, const OptionDesc &desc, float, float defVal);
 		void operator() (const char *argName, const OptionDesc &desc, bool, bool defVal);
 		std::ostream &out;
+		std::uint32_t programOptions;
 		bool full;
 		
 #ifndef ARGUMENT_PARSER_NO_STL_SUPPORT
@@ -135,10 +142,10 @@ struct OptionParserBase
 	OptionParserBase (const char *appName, const char *version, unsigned int programOptions = 0)
 		: programOptions(programOptions), programName(appName), programVersion(version), programHelpTextHeader(NULL) { }
 	
-	void setHelpText (const char *head) { programHelpTextHeader = head; }
+	void setHelpText (const char *head, const char *tail = NULL) { programHelpTextHeader = head; programHelpTextTail = tail; }
 protected:
 	unsigned int programOptions;
-	const char *programName, *programVersion, *programHelpTextHeader;
+	const char *programName, *programVersion, *programHelpTextHeader, *programHelpTextTail;
 	std::uint64_t setParameters;
 	
 	void printHelpHead (std::ostream &out);
@@ -155,21 +162,24 @@ protected:
 struct OPTIONS_CLASS_NAME : public OptionParserBase     \
 {     \
 	OPTION_LIST_MACRO_NAME(OPTIONS_DEF_MEMBER)     \
-	     \
+	\
 	enum _opt_Parameters {     \
 		OPTION_LIST_MACRO_NAME(OPTIONS_DEF_FLAG)     \
 	};     \
-	     \
+	\
 	template<class F>     \
 	void for_each_option (F &_opt_f) {     \
 		OPTION_LIST_MACRO_NAME(OPTIONS_DEF_OPERATION)     \
 	}     \
-	     \
+	\
 	void printHelp (std::ostream &out, bool full) {     \
 		printHelpHead(out);     \
-		HelpPrinter printer {out, full}; for_each_option(printer);     \
+		HelpPrinter printer {out, programOptions, full}; for_each_option(printer);     \
+		if (programHelpTextTail) \
+			out << programHelpTextTail; \
+		out << std::endl; \
 	}     \
-	     \
+	\
 	OPTIONS_CLASS_NAME (const char *appName, const char *version, unsigned int programOptions = 0)     \
 		: OptionParserBase(appName, version, programOptions)      \
 		OPTION_LIST_MACRO_NAME(OPTIONS_INIT_VAL)     \
