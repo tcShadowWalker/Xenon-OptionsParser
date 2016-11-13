@@ -5,6 +5,8 @@
 #define CREATE_MY_OPTIONLIST(DEF) \
 	DEF(filename, std::string, OptionDesc("some file-path", Options_Required), "abc") \
 	DEF(path, std::string, OptionDesc("base path", Options_Positional), "") \
+	DEF(output, std::string, OptionDesc("output filepath", Options_None, 'o'), "test.txt") \
+	\
 	DEF(prod_name, std::string, OptionDesc("some name path", Options_Positional), "") \
 	DEF(secret, bool, OptionDesc("some secret option!", Options_Hidden | Options_Flag, 's'), true) \
 	DEF(flag, bool, OptionDesc("this is just a flag", Options_Flag, 'f'), false) \
@@ -23,7 +25,7 @@ DEFINE_PROGRAM_OPTIONS_IMPL(MyOptions, CREATE_MY_OPTIONLIST);
 		std::cout << "'" _OPTIONS_str(arg) << "' = \"" << opt.arg << "\"\n";
 
 int main(int argc, char **argv) {
-	MyOptions opt ("OptionParserTest", "0.1");
+	MyOptions opt ("ExampleOptionParser", "0.1");
 	opt.setHelpText("A simple program options parser example.\n");
 	
 	opt.parse (argc, argv);

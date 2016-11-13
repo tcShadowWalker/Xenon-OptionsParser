@@ -107,7 +107,7 @@ void OptionParserBase::parse (int argc, char **argv)
 	for (int iArg = 1; iArg < argc; ++iArg)
 	{
 		const char *thisArg = argv[iArg];
-		if (!thisArg[0])
+		if (!thisArg[0] || (thisArg[0] == '-' && thisArg[1] == '\0'))
 			throw std::runtime_error("Invalid argument syntax");
 		
 		if (thisArg[0] == '-' && thisArg[1] == '-') // Long option
@@ -135,12 +135,32 @@ void OptionParserBase::parse (int argc, char **argv)
 				std::cout << programName << " - " << programVersion << std::endl;
 			} else {
 				if (!(programOptions & OptionParser_IgnoreUnknown))
-					throw std::runtime_error(std::string("Unknown parameter: ") + thisArg);
+					throw std::runtime_error(std::string("Unknown argument: ") + thisArg);
 			}
 		} else if (thisArg[0] == '-' && thisArg[1] != '-') // Short option
 		{
-			// TODO
-		} else  {
+			if (thisArg[2] == '\0') { // one short-hand argument. MAY Have a parameter
+				const char *argValue = (argc > iArg+1) ? argv[iArg+1] : NULL;
+				OptionDesc selectedArg (NULL, 0);
+				if (!parseShortArgument (thisArg[1], argValue, &selectedArg)) {
+					if (!(programOptions & OptionParser_IgnoreUnknown))
+						throw std::runtime_error(std::string("Unknown short-form argument: ") + thisArg[1]);
+				}
+				if (!(selectedArg.flags & Options_Flag) && argValue)
+					++iArg;
+			}
+			else {
+				for (const char *s = &thisArg[1]; *s; ++s) {
+					OptionDesc selectedArg (NULL, 0);
+					if (!parseShortArgument (*s, NULL, &selectedArg)) {
+						if (!(programOptions & OptionParser_IgnoreUnknown))
+							throw std::runtime_error(std::string("Unknown short-form argument: ") + *s);
+					}
+					assert (selectedArg.flags & Options_Flag);
+				}
+			}
+		}
+		else  {
 			if (iArg >= 0xFFFE || numPositionalArgs >= (maxPosArgs-1) )
 				throw std::runtime_error("Too many positional arguments given.");
 			positionalArgs[numPositionalArgs++] = iArg;
