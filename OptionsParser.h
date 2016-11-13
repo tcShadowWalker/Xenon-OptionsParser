@@ -1,4 +1,8 @@
 #pragma once
+#ifndef ARGUMENT_PARSER_NO_STL_SUPPORT
+	#include <vector>
+#endif
+#include <stdexcept>
 
 enum OptionsFlags {
 	Options_None             = 0,
@@ -10,10 +14,13 @@ enum OptionsFlags {
 	Options_Flag             = 1U << 2,
 	/// This parameter is mandatory; If not given, evaluation will fail.
 	Options_Required         = 1U << 3,
+	/// Parameter can be given more than once. Use vectors for these arguments.
+	/// If combined with @link Options_Positional, will consume all positional arguments.
+	Options_Multiple         = 1U << 4,
 };
 
 enum OptionParserFlags {
-	/// Do not generate help text
+	/// Do not generate help text. Can be used to provide --help generation manually.
 	OptionParser_NoHelp         = 1U << 0,
 	/// Do not generate behaviour for --version option
 	OptionParser_NoVersion      = 1U << 1,
@@ -60,8 +67,10 @@ struct OptionDesc {
 	} else
 
 #define OPTIONS_CHECK_ARGUMENTS(name, type, desc, def) \
-	if (((desc.flags) & Options_Positional) && !has_##name() && nextPositionalArg < numPositionalArgs) { \
-		this->_opt_parse_arg ( this->name, argv[positionalArgs[nextPositionalArg++]], desc.setName( _OPTIONS_str(name) ) ); \
+	if (((desc.flags) & Options_Positional) && (!has_##name() || (desc.flags & Options_Multiple)) && nextPositionalArg < numPositionalArgs) { \
+		do { \
+			this->_opt_parse_arg ( this->name, argv[positionalArgs[nextPositionalArg++]], desc.setName( _OPTIONS_str(name) ) ); \
+		} while ((nextPositionalArg < numPositionalArgs) && (desc.flags & Options_Multiple)); \
 		this->setParameters |= (1U << PARAM_##name); \
 	} \
 	if (((desc.flags) & Options_Required) && !has_##name()) { \
@@ -76,6 +85,11 @@ struct RequiredArgumentMissing : public std::exception
 	std::string s;
 };
 
+struct ArgumentParserError : public std::runtime_error
+{
+	ArgumentParserError (const std::string &s) : runtime_error(s) { }
+};
+
 struct OptionParserBase
 {
 	void _opt_parse_arg ( std::string &p, const char *argValue, const OptionDesc &desc );
@@ -84,6 +98,14 @@ struct OptionParserBase
 	void _opt_parse_arg ( float &p, const char *argValue, const OptionDesc &desc );
 	void _opt_parse_arg ( bool &p, const char *argValue, const OptionDesc &desc );
 	
+#ifndef ARGUMENT_PARSER_NO_STL_SUPPORT
+	template<class T> void _opt_parse_arg ( std::vector<T> &p, const char *argValue, const OptionDesc &desc ) {
+		T val;
+		_opt_parse_arg (val, argValue, desc);
+		p.push_back(val);
+	}
+#endif
+	
 	struct HelpPrinter {
 		void operator() (const char *argName, const OptionDesc &desc, const std::string &, const std::string &defVal);
 		void operator() (const char *argName, const OptionDesc &desc, int32_t, int32_t defVal);
@@ -91,10 +113,24 @@ struct OptionParserBase
 		void operator() (const char *argName, const OptionDesc &desc, float, float defVal);
 		void operator() (const char *argName, const OptionDesc &desc, bool, bool defVal);
 		std::ostream &out;
+		bool full;
+		
+#ifndef ARGUMENT_PARSER_NO_STL_SUPPORT
+		template<class T> void operator() (const char *argName, const OptionDesc &desc, const std::vector<T> &, const std::vector<T> &) {
+			const T val;
+			(*this) (argName, desc, val, val);
+		}
+#endif
 	};
 	
-	void parse (int argc, char **argv);
-	virtual void printHelp (std::ostream &out) = 0;
+	enum ParseResult {
+		PARSE_OK = 1,
+		/// --help or --version was given; Action was taken. App should terminate.
+		PARSE_TERMINATE = 2,
+	};
+	
+	ParseResult parse (int argc, char **argv);
+	virtual void printHelp (std::ostream &out, bool full) = 0;
 	
 	OptionParserBase (const char *appName, const char *version, unsigned int programOptions = 0)
 		: programOptions(programOptions), programName(appName), programVersion(version), programHelpTextHeader(NULL) { }
@@ -129,9 +165,9 @@ struct OPTIONS_CLASS_NAME : public OptionParserBase     \
 		OPTION_LIST_MACRO_NAME(OPTIONS_DEF_OPERATION)     \
 	}     \
 	     \
-	void printHelp (std::ostream &out) {     \
+	void printHelp (std::ostream &out, bool full) {     \
 		printHelpHead(out);     \
-		HelpPrinter printer {out}; for_each_option(printer);     \
+		HelpPrinter printer {out, full}; for_each_option(printer);     \
 	}     \
 	     \
 	OPTIONS_CLASS_NAME (const char *appName, const char *version, unsigned int programOptions = 0)     \
@@ -165,5 +201,7 @@ bool OPTIONS_CLASS_NAME::parseShortArgument (char arg, const char *argValue, Opt
 void OPTIONS_CLASS_NAME::checkArguments (char **argv, std::uint32_t numPositionalArgs, std::uint16_t *positionalArgs) {      \
 	unsigned int nextPositionalArg = 0; \
 	OPTION_LIST_MACRO_NAME(OPTIONS_CHECK_ARGUMENTS)      \
+	if ((nextPositionalArg < numPositionalArgs) && !(programOptions & OptionParser_IgnoreUnknown))  \
+		throw ArgumentParserError(std::string("Too many positional arguments"));    \
 }
 
