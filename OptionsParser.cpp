@@ -4,14 +4,25 @@
 #include <stdexcept>
 #include <iostream>
 #include <cstring>
+#include <cassert>
 #include <memory>
 
 void OptionParserBase::_opt_parse_arg ( std::string &p, const char *argValue, const OptionDesc &desc )
 {
+	if (!argValue)
+		throw std::runtime_error ( std::string("OptionsParser: Missing argument for parameter '") + std::string(desc.name));
 	p.assign (argValue);
 }
 
-void OptionParserBase::_opt_parse_arg ( int &p, const char *argValue, const OptionDesc &desc ) {
+void OptionParserBase::_opt_parse_arg ( std::int32_t &p, const char *argValue, const OptionDesc &desc ) {
+	std::int64_t tmp;
+	_opt_parse_arg (tmp, argValue, desc);
+	p = tmp;
+}
+
+void OptionParserBase::_opt_parse_arg ( std::int64_t &p, const char *argValue, const OptionDesc &desc ) {
+	if (!argValue)
+		throw std::runtime_error ( std::string("OptionsParser: Missing argument for parameter '") + std::string(desc.name));
 	char *e;
 	p = strtol (argValue, &e, 10);
 	if (e == argValue)
@@ -19,11 +30,34 @@ void OptionParserBase::_opt_parse_arg ( int &p, const char *argValue, const Opti
 }
 
 void OptionParserBase::_opt_parse_arg ( float &p, const char *argValue, const OptionDesc &desc ) {
-	
+	if (!argValue)
+		throw std::runtime_error ( std::string("OptionsParser: Missing argument for parameter '") + std::string(desc.name));
+	char *e;
+	p = strtof (argValue, &e);
+	if (e == argValue)
+		throw std::runtime_error ( std::string("OptionsParser: Could not parse argument '") + std::string(desc.name) + "'. Not a valid floating-point number");
 }
 
 void OptionParserBase::_opt_parse_arg ( bool &p, const char *argValue, const OptionDesc &desc ) {
-	
+	if (!argValue) {
+		if ( (desc.flags & Options_Flag) == 0)
+			throw std::runtime_error ( std::string("OptionsParser: Missing argument for parameter '") + std::string(desc.name));
+		p = true;
+		return; 
+	}
+	if ( argValue[1] == '\0') { // One byte
+		if (argValue[0] == '1')
+			p = true;
+		else if ( argValue[0] == '0')
+			p = false;
+		else
+			throw std::runtime_error ( std::string("OptionsParser: Could not parse argument '") + std::string(desc.name) + "'. Not a valid boolean value");
+	} else if (strcmp (argValue, "true") == 0) {
+		p = true;
+	} else if (strcmp (argValue, "false") == 0) {
+		p = false;
+	} else
+		throw std::runtime_error ( std::string("OptionsParser: Could not parse argument '") + std::string(desc.name) + "'. Not a valid boolean value");
 }
 
 //
@@ -31,22 +65,26 @@ void OptionParserBase::_opt_parse_arg ( bool &p, const char *argValue, const Opt
 void OptionParserBase::HelpPrinter::operator() (const char *argName, const OptionDesc &desc, const std::string &, const std::string &defVal) {
 	if (desc.flags & Options_Hidden)
 		return;
-	out << "\t" << argName << "\t\t" << desc.description << " (default " << defVal << ")\n" << std::endl;
+	const char *req = (desc.flags & Options_Required) ? "*required; " : "\0\0";
+	out << "\t" << req[0] << argName << "\t\t" << desc.description << " (" << &req[1] << "default: \"" << defVal << "\")\n" << std::endl;
 }
 void OptionParserBase::HelpPrinter::operator() (const char *argName, const OptionDesc &desc, int, int defVal) {
 	if (desc.flags & Options_Hidden)
 		return;
-	out << "\t" << argName << "\t\t" << desc.description << " (default " << defVal << ")\n" << std::endl;
+	const char *req = (desc.flags & Options_Required) ? "*required; " : "\0\0";
+	out << "\t" << req[0] << argName << "\t\t" << desc.description << " (" << &req[1] << "default: " << defVal << ")\n" << std::endl;
 }
 void OptionParserBase::HelpPrinter::operator() (const char *argName, const OptionDesc &desc, float, float defVal) {
 	if (desc.flags & Options_Hidden)
 		return;
-	out << "\t" << argName << "\t\t" << desc.description << " (default " << defVal << ")\n" << std::endl;
+	const char *req = (desc.flags & Options_Required) ? "*required; " : "\0\0";
+	out << "\t" << req[0] << argName << "\t\t" << desc.description << " (" << &req[1] << "default: " << defVal << ")\n" << std::endl;
 }
 void OptionParserBase::HelpPrinter::operator() (const char *argName, const OptionDesc &desc, bool, bool defVal) {
 	if (desc.flags & Options_Hidden)
 		return;
-	out << "\t" << argName << "\t\t" << desc.description << " (default " << defVal << ")\n" << std::endl;
+	const char *req = (desc.flags & Options_Required) ? "*required; " : "\0\0";
+	out << "\t" << req[0] << argName << "\t\t" << desc.description << " (" << &req[1] << "default: " << defVal << ")\n" << std::endl;
 }
 
 void OptionParserBase::printHelpHead (std::ostream &out) {
@@ -60,48 +98,53 @@ void OptionParserBase::printHelpHead (std::ostream &out) {
 
 void OptionParserBase::parse (int argc, char **argv)
 {
-	static const int _max_arg_name_len = 60;
-	char _opt_arg_name[_max_arg_name_len + 1];
+	this->setParameters = 0;
+	static const int maxArgLen = 63, maxPosArgs = 32;
+	char argName[maxArgLen + 1];
 	
-	int havePositionalArgs = ~0U;
+	std::uint16_t positionalArgs[ maxPosArgs ];
+	std::uint32_t numPositionalArgs = 0U;
 	for (int iArg = 1; iArg < argc; ++iArg)
 	{
-		const char *_this_arg = argv[iArg];
-		if (!_this_arg[0])
+		const char *thisArg = argv[iArg];
+		if (!thisArg[0])
 			throw std::runtime_error("Invalid argument syntax");
 		
-		if (_this_arg[0] == '-' && _this_arg[1] == '-') // Long option
-		{ 
-			const char *_opt_sepPos = (const char*)memchr (_this_arg, '=', _max_arg_name_len);
-			if (_opt_sepPos) {
-				memcpy (_opt_arg_name, _this_arg, _opt_sepPos - _this_arg);
-				_opt_arg_name[_opt_sepPos - _this_arg] = '\0';
-			} else {
-				++iArg;
-			}
-			const char *argValue = (_opt_sepPos) ? _opt_sepPos+1 : argv[iArg];
-			if (parseLongArgument (_opt_arg_name, argValue)) {
+		if (thisArg[0] == '-' && thisArg[1] == '-') // Long option
+		{
+			thisArg += 2;
+			const char *sepPos = strchr (thisArg, '=');
+			if (sepPos && (sepPos - thisArg) < maxArgLen) {
+				memcpy (argName, thisArg, sepPos - thisArg);
+				argName[sepPos - thisArg] = '\0';
+				thisArg = argName;
+			} else
+				sepPos = NULL;
+			
+			const char *argValue = (sepPos) ? sepPos+1 : ((argc > iArg+1) ? argv[iArg+1] : NULL);
+			OptionDesc selectedArg (NULL, 0);
+			
+			if (parseLongArgument (thisArg, argValue, &selectedArg)) {
 				// Ok.
-			} else if ( (programOptions & OptionParser_NoHelp) == 0 && strcmp (_opt_arg_name, "--help") == 0) {
+				assert (selectedArg.description != NULL);
+				if (!sepPos && !(selectedArg.flags & Options_Flag)) // Does consume additional arg
+					++iArg;
+			} else if ( (programOptions & OptionParser_NoHelp) == 0 && strcmp (thisArg, "help") == 0) {
 				printHelp (std::cout);
-			} else if ( (programOptions & OptionParser_NoVersion) == 0 && strcmp (_opt_arg_name, "--version") == 0) {
+			} else if ( (programOptions & OptionParser_NoVersion) == 0 && strcmp (thisArg, "version") == 0) {
 				std::cout << programName << " - " << programVersion << std::endl;
 			} else {
-				std::cerr << "Invalid parameter: " << _opt_arg_name << std::endl;
+				if (!(programOptions & OptionParser_IgnoreUnknown))
+					throw std::runtime_error(std::string("Unknown parameter: ") + thisArg);
 			}
-		} else if (_this_arg[0] == '-' && _this_arg[1] != '-') // Short option
+		} else if (thisArg[0] == '-' && thisArg[1] != '-') // Short option
 		{
 			// TODO
 		} else  {
-			if (havePositionalArgs == ~0U)
-				havePositionalArgs = iArg;
+			if (iArg >= 0xFFFE || numPositionalArgs >= (maxPosArgs-1) )
+				throw std::runtime_error("Too many positional arguments given.");
+			positionalArgs[numPositionalArgs++] = iArg;
 		}
 	}
-	if (~havePositionalArgs) {
-		for (int iArg = havePositionalArgs; iArg < argc; ++iArg)
-		{
-			
-		}
-	}
-	this->checkArguments();
+	this->checkArguments(argv, numPositionalArgs, positionalArgs);
 }

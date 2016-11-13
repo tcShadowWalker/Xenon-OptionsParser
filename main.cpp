@@ -4,55 +4,17 @@
 
 #define CREATE_MY_OPTIONLIST(DEF) \
 	DEF(filename, std::string, OptionDesc("some file-path", Options_Required), "abc") \
-	DEF(secret, bool, OptionDesc("some secret option!", Options_Hidden), true) \
-	DEF(flag, bool, OptionDesc("this is just a flag", Options_Flag), false) \
+	DEF(path, std::string, OptionDesc("base path", Options_Positional), "") \
+	DEF(prod_name, std::string, OptionDesc("some name path", Options_Positional), "") \
+	DEF(secret, bool, OptionDesc("some secret option!", Options_Hidden | Options_Flag, 's'), true) \
+	DEF(flag, bool, OptionDesc("this is just a flag", Options_Flag, 'f'), false) \
 	DEF(someInt, int, OptionDesc("my int", Options_None), 123) \
 	DEF(myFloat, float, OptionDesc("my float", Options_None), 45.6f) \
+	DEF(lazy, bool, OptionDesc("Use lazy", Options_Flag), false) \
 	
 
-struct Options : public OptionParserBase
-{
-	CREATE_MY_OPTIONLIST(OPTIONS_DEF_MEMBER)
-	
-	enum Parameters {
-		CREATE_MY_OPTIONLIST(OPTIONS_DEF_FLAG)
-	};
-	
-	std::uint64_t _opt_setParameters;
-	
-	template<class F>
-	void for_each_option (F &_opt_f) {
-		CREATE_MY_OPTIONLIST(OPTIONS_DEF_OPERATION)
-	}
-	
-	void printHelp (std::ostream &out) {
-		printHelpHead(out);
-		HelpPrinter printer {out}; for_each_option(printer);
-	}
-	
-	Options (const char *appName, const char *version, unsigned int programOptions = 0)
-		: OptionParserBase(appName, version, programOptions) 
-		CREATE_MY_OPTIONLIST(OPTIONS_INIT_VAL)
-		{}
-protected:
-	bool parseLongArgument (const char *argName, const char *argValue);
-	void checkArguments ();
-};
-
-CREATE_MY_OPTIONLIST(OPTIONS_DEF_DEFAULT)
-
-bool Options::parseLongArgument (const char *argName, const char *argValue)
-{
-	CREATE_MY_OPTIONLIST(OPTIONS_DEF_DO_PARSE)
-	/* implicit else: */ {
-		return false;
-	}
-	return true;
-}
-
-void Options::checkArguments () {
-	CREATE_MY_OPTIONLIST(OPTIONS_CHECK_REQUIRED_GIVEN)
-}
+DECLARE_PROGRAM_OPTIONS(MyOptions, CREATE_MY_OPTIONLIST);
+DEFINE_PROGRAM_OPTIONS_IMPL(MyOptions, CREATE_MY_OPTIONLIST);
 
 #define PRINT_MY_OPTION(arg, type, desc, def) \
 	if (!opt.has_##arg()) \
@@ -61,7 +23,7 @@ void Options::checkArguments () {
 		std::cout << "'" _OPTIONS_str(arg) << "' = \"" << opt.arg << "\"\n";
 
 int main(int argc, char **argv) {
-	Options opt ("OptionParserTest", "0.1");
+	MyOptions opt ("OptionParserTest", "0.1");
 	opt.setHelpText("A simple program options parser example.\n");
 	
 	opt.parse (argc, argv);

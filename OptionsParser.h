@@ -2,19 +2,25 @@
 
 enum OptionsFlags {
 	Options_None             = 0,
+	/// Do not print this parameter when --help is given.
 	Options_Hidden           = 1U << 0,
+	/// Positional parameter can be given without the argument name or short-flag
 	Options_Positional       = 1U << 1,
+	/// This parameter requires no argument value, but serves only as a flag. Must be of type bool.
 	Options_Flag             = 1U << 2,
+	/// This parameter is mandatory; If not given, evaluation will fail.
 	Options_Required         = 1U << 3,
 };
 
 enum OptionParserFlags {
 	/// Do not generate help text
-	OptionParser_NoHelp      = 1U << 0,
+	OptionParser_NoHelp         = 1U << 0,
 	/// Do not generate behaviour for --version option
-	OptionParser_NoVersion   = 1U << 1,
+	OptionParser_NoVersion      = 1U << 1,
 	/// Don't generate full-help showing hidden options
-	OptionParser_HideHidden  = 1U << 1,
+	OptionParser_HideHidden     = 1U << 2,
+	/// Don't abort parsing when encountering unknown arguments
+	OptionParser_IgnoreUnknown  = 1U << 3,
 };
 
 struct OptionDesc {
@@ -32,24 +38,34 @@ struct OptionDesc {
 #define _OPTIONS_xstr(s) str(s)
 #define _OPTIONS_str(s) #s
 
-#define OPTIONS_DEF_MEMBER(name, type, desc, def) type name;  static const type default_##name; \
-		bool has_##name () const { return _opt_setParameters & (1U << PARAM_##name); }
+#define OPTIONS_DEF_MEMBER(name, type, desc, def) type name; \
+		bool has_##name () const { return setParameters & (1U << PARAM_##name); }
 
 #define OPTIONS_DEF_FLAG(name, type, desc, def) PARAM_##name,
 
 #define OPTIONS_DEF_OPERATION(name, type, desc, def) _opt_f( _OPTIONS_str(name), desc, this->name, def);
 
-#define OPTIONS_DEF_DEFAULT(name, type, desc, def) const type Options::default_##name (def);
-
 #define OPTIONS_INIT_VAL(name, type, desc, def) , name(def)
 
 #define OPTIONS_DEF_DO_PARSE(name, type, desc, def) if ( strcmp (argName, _OPTIONS_str(name)) == 0) { \
 		this->_opt_parse_arg ( this->name, argValue, desc.setName( _OPTIONS_str(name) ) ); \
+		this->setParameters |= (1U << PARAM_##name); \
+		*selectedArg = desc; \
 	} else
 
-#define OPTIONS_CHECK_REQUIRED_GIVEN(name, type, desc, def) if (((desc.flags) & Options_Required) && !has_##name()) {\
-		throw RequiredArgumentMissing( _OPTIONS_str(name) ); }
+#define OPTIONS_DEF_DO_PARSE_SHORT(name, type, desc, def) if ( arg == desc.shortOption ) { \
+		this->_opt_parse_arg ( this->name, argValue, desc.setName( _OPTIONS_str(name) ) ); \
+		this->setParameters |= (1U << PARAM_##name); \
+		*selectedArg = desc; \
+	} else
 
+#define OPTIONS_CHECK_ARGUMENTS(name, type, desc, def) \
+	if (((desc.flags) & Options_Positional) && !has_##name() && nextPositionalArg < numPositionalArgs) { \
+		this->_opt_parse_arg ( this->name, argv[positionalArgs[nextPositionalArg++]], desc.setName( _OPTIONS_str(name) ) ); \
+		this->setParameters |= (1U << PARAM_##name); \
+	} \
+	if (((desc.flags) & Options_Required) && !has_##name()) { \
+		throw RequiredArgumentMissing( _OPTIONS_str(name) ); }
 
 struct RequiredArgumentMissing : public std::exception
 {
@@ -63,13 +79,15 @@ struct RequiredArgumentMissing : public std::exception
 struct OptionParserBase
 {
 	void _opt_parse_arg ( std::string &p, const char *argValue, const OptionDesc &desc );
-	void _opt_parse_arg ( int &p, const char *argValue, const OptionDesc &desc );
+	void _opt_parse_arg ( int32_t &p, const char *argValue, const OptionDesc &desc );
+	void _opt_parse_arg ( int64_t &p, const char *argValue, const OptionDesc &desc );
 	void _opt_parse_arg ( float &p, const char *argValue, const OptionDesc &desc );
 	void _opt_parse_arg ( bool &p, const char *argValue, const OptionDesc &desc );
 	
 	struct HelpPrinter {
 		void operator() (const char *argName, const OptionDesc &desc, const std::string &, const std::string &defVal);
-		void operator() (const char *argName, const OptionDesc &desc, int, int defVal);
+		void operator() (const char *argName, const OptionDesc &desc, int32_t, int32_t defVal);
+		void operator() (const char *argName, const OptionDesc &desc, int64_t, int64_t defVal);
 		void operator() (const char *argName, const OptionDesc &desc, float, float defVal);
 		void operator() (const char *argName, const OptionDesc &desc, bool, bool defVal);
 		std::ostream &out;
@@ -85,20 +103,67 @@ struct OptionParserBase
 protected:
 	unsigned int programOptions;
 	const char *programName, *programVersion, *programHelpTextHeader;
+	std::uint64_t setParameters;
 	
 	void printHelpHead (std::ostream &out);
 	
-	virtual bool parseLongArgument (const char *argName, const char *argValue) = 0;
-	virtual void checkArguments () = 0;
+	virtual bool parseLongArgument (const char *argName, const char *argValue, OptionDesc *selectedArg) = 0;
+	virtual bool parseShortArgument (char arg, const char *argValue, OptionDesc *selectedArg) = 0;
+	virtual void checkArguments (char **argv, std::uint32_t numPositionalArgs, std::uint16_t *positionalArgs) = 0;
 };
 
 /**
  * @brief Main macro to define list of program options
  */
-#define DECLARE_PROGRAM_OPTIONS(OptionsClassName, OPTION_LIST_MACRO_NAME)
+#define DECLARE_PROGRAM_OPTIONS(OPTIONS_CLASS_NAME, OPTION_LIST_MACRO_NAME)      \
+struct OPTIONS_CLASS_NAME : public OptionParserBase     \
+{     \
+	OPTION_LIST_MACRO_NAME(OPTIONS_DEF_MEMBER)     \
+	     \
+	enum Parameters {     \
+		OPTION_LIST_MACRO_NAME(OPTIONS_DEF_FLAG)     \
+	};     \
+	     \
+	template<class F>     \
+	void for_each_option (F &_opt_f) {     \
+		OPTION_LIST_MACRO_NAME(OPTIONS_DEF_OPERATION)     \
+	}     \
+	     \
+	void printHelp (std::ostream &out) {     \
+		printHelpHead(out);     \
+		HelpPrinter printer {out}; for_each_option(printer);     \
+	}     \
+	     \
+	OPTIONS_CLASS_NAME (const char *appName, const char *version, unsigned int programOptions = 0)     \
+		: OptionParserBase(appName, version, programOptions)      \
+		OPTION_LIST_MACRO_NAME(OPTIONS_INIT_VAL)     \
+		{}     \
+protected:     \
+	bool parseLongArgument (const char *argName, const char *argValue, OptionDesc *selectedArg);     \
+	bool parseShortArgument (char arg, const char *argValue, OptionDesc *selectedArg);     \
+	void checkArguments (char **argv, std::uint32_t numPositionalArgs, std::uint16_t *positionalArgs);     \
+};
 
 /**
  * @brief Provide parser implementation code for program options
  */
-#define DEFINE_PROGRAM_OPTIONS_IMPL(OptionsClassName, OPTION_LIST_MACRO_NAME)
+#define DEFINE_PROGRAM_OPTIONS_IMPL(OPTIONS_CLASS_NAME, OPTION_LIST_MACRO_NAME)     \
+bool OPTIONS_CLASS_NAME::parseLongArgument (const char *argName, const char *argValue, OptionDesc *selectedArg) {      \
+	OPTION_LIST_MACRO_NAME(OPTIONS_DEF_DO_PARSE)      \
+	/* implicit else: */ {      \
+		return false;      \
+	}      \
+	return true;      \
+}      \
+bool OPTIONS_CLASS_NAME::parseShortArgument (char arg, const char *argValue, OptionDesc *selectedArg) {      \
+	OPTION_LIST_MACRO_NAME(OPTIONS_DEF_DO_PARSE_SHORT)      \
+	/* implicit else: */ {      \
+		return false;      \
+	}      \
+	return true;      \
+}      \
+void OPTIONS_CLASS_NAME::checkArguments (char **argv, std::uint32_t numPositionalArgs, std::uint16_t *positionalArgs) {      \
+	unsigned int nextPositionalArg = 0; \
+	OPTION_LIST_MACRO_NAME(OPTIONS_CHECK_ARGUMENTS)      \
+}
 
