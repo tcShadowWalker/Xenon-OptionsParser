@@ -38,10 +38,18 @@ enum OptionParserFlags {
 	CompactHelp    = 1U << 4,
 };
 
+enum OptionGroupFlags {
+	/// At most one option can be active
+	Group_Exclusive      = 1U << 0,
+	/// At least one option from this group must be active
+	Group_Required       = 1U << 1,
+};
+
 struct OptionGroup {
 	const char *desc;
+	std::uint32_t flags;
 	
-	OptionGroup (const char *desc) : desc(desc) { }
+	OptionGroup (const char *desc, unsigned int pFlags = 0) : desc(desc), flags(pFlags) { }
 };
 
 struct OptionDesc {
@@ -120,6 +128,7 @@ protected:
 	virtual bool _opt_parseLongArgument (const char *argName, const char *argValue, OptionDesc *selectedArg, int parseFlags = 0) = 0;
 	virtual bool _opt_parseShortArgument (char arg, const char *argValue, OptionDesc *selectedArg) = 0;
 	virtual void _opt_checkArguments (char **argv, uint32_t numPositionalArgs, uint16_t *positionalArgs, const AppInformation &appInfo) = 0;
+	virtual void _opt_enumerateGroups (const OptionGroup **&groups, unsigned int maxGroups) = 0;
 };
 
 /// @brief Contains all the parsing functions for each type. Can be extended by the user.
@@ -217,6 +226,7 @@ protected:     \
 	bool _opt_parseLongArgument (const char *argName, const char *argValue, OptionDesc *selectedArg, int parseFlags);     \
 	bool _opt_parseShortArgument (char arg, const char *argValue, OptionDesc *selectedArg);     \
 	void _opt_checkArguments (char **argv, uint32_t numPositionalArgs, uint16_t *positionalArgs, const Xenon::ArgumentParser::AppInformation &);     \
+	void _opt_enumerateGroups (const Xenon::ArgumentParser::OptionGroup **&groups, unsigned int maxGroups); \
 };
 
 /**
@@ -248,9 +258,16 @@ void OPTIONS_CLASS_NAME##_Parser::_opt_checkArguments (char **_opt_argv, uint32_
 	if ((_opt_nextPositionalArg < _opt_numPositionalArgs) && !(appInfo.programOptions & Xenon::ArgumentParser::IgnoreUnknown))  \
 		throw ArgumentParserError(std::string("Too many positional arguments"));    \
 	OPTION_LIST_MACRO_NAME(XE_ARG_PARSE_OPTIONS_CHECK_ARGUMENTS)      \
+}\
+void OPTIONS_CLASS_NAME##_Parser::_opt_enumerateGroups (const Xenon::ArgumentParser::OptionGroup **&_opt_group, unsigned int _opt_maxGroups) {\
+	using namespace Xenon::ArgumentParser; \
+	unsigned int _opt_nGroups = 0; \
+	*_opt_group = NULL; \
+	const OptionGroup *_opt_prev = NULL; \
+	OPTION_LIST_MACRO_NAME(XE_ARG_VISIT_GROUPS)      \
 }
 
-#define XE_DECLARE_OPTIONS_GROUP(GROUP_NAME, GROUP_DESC, GROUP_FLAGS) const Xenon::ArgumentParser::OptionGroup GROUP_NAME (GROUP_DESC);
+#define XE_DECLARE_OPTIONS_GROUP(GROUP_NAME, GROUP_DESC, GROUP_FLAGS) const Xenon::ArgumentParser::OptionGroup GROUP_NAME (GROUP_DESC, GROUP_FLAGS);
 
 #define XE_DEPEND_ON(OPTION_NAME) dependOn ( (1U << _XE_OPT_DATA::PARAM_##OPTION_NAME) )
 
@@ -276,7 +293,10 @@ void OPTIONS_CLASS_NAME##_Parser::_opt_checkArguments (char **_opt_argv, uint32_
 		*selectedArg = desc; \
 	} else
 
-#define XE_ARG_PARSE_OPTIONS_DEF_DO_PARSE_SHORT(var_name, type, desc, def) if ( arg == (desc).shortOption ) { \
+#define XE_ARG_PARSE_OPTIONS_DEF_DO_PARSE_SHORT(var_name, type, desc, def) \
+	if ( arg == (desc).shortOption ) { \
+		if (((desc).flags & Options_Flag)) \
+			argValue = NULL; \
 		ParseFunctions::parse ( this->data->var_name, argValue, (desc).setName( _OPTIONS_str(var_name) ) ); \
 		this->data->setParameters |= (1U << this->data->PARAM_##var_name); \
 		*selectedArg = desc; \
@@ -298,6 +318,16 @@ void OPTIONS_CLASS_NAME##_Parser::_opt_checkArguments (char **_opt_argv, uint32_
 		} \
 		if ( data->has_##var_name() && (odesc.depends_on & ~this->data->setParameters )) { \
 			throw ArgumentParserError ( std::string("OptionsParser: Option '") + std::string(odesc.name) + "' depends on options that are not given"); \
+		} \
+	}
+	
+#define XE_ARG_VISIT_GROUPS(var_name, type, macro_desc, def) \
+	{ \
+		const OptionGroup *g = (macro_desc).assignedGroup; \
+		if (g && g != _opt_prev) {\
+			if (++_opt_nGroups > _opt_maxGroups)\
+				throw std::logic_error ("ArgumentParser: Too many OptionGroups. Only 32 are allowed"); \
+			*(_opt_group++) = _opt_prev = g; \
 		} \
 	}
 

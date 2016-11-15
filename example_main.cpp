@@ -5,14 +5,19 @@
 const char *indentationValues[] = { "tabs", "spaces", "none", 0 };
 const char *numIterations[] = { "1", "2", "3", "4", 0 };
 
+XE_DECLARE_OPTIONS_GROUP(OpMode, "Operation mode", Xenon::ArgumentParser::Group_Exclusive | Xenon::ArgumentParser::Group_Required);
 XE_DECLARE_OPTIONS_GROUP(GroupPerformance, "Performance options", 0);
 
 #define CREATE_MY_OPTIONLIST(DEF) \
+	\
+	DEF(mode1, bool, (OptionDesc("operation mode1", Options_Flag).group(OpMode)), false) \
+	DEF(mode2, bool, (OptionDesc("operation mode2", Options_Flag).group(OpMode)), false) \
+	\
 	DEF(filename, std::vector<std::string>, OptionDesc("some file-path", Options_Required | Options_Multiple | Options_Positional, 'f'), std::vector<std::string>())  \
 	DEF(path, std::string, OptionDesc("base path", Options_None), "") \
 	DEF(output, std::string, OptionDesc("output filepath. Requires path option as well", Options_Flag, 'o').XE_DEPEND_ON(path), "test.txt") \
 	\
-	DEF(prod_name, std::string, (OptionDesc("some name path", Options_None).setName("prod-name")), "") \
+	DEF(prod_name, std::string, (OptionDesc("some name path. Only useful for operation mode 2", Options_None).setName("prod-name")), "") \
 	DEF(indent, std::string, (OptionDesc("character used for indentation", Options_None).setEnum( indentationValues )), "tabs") \
 	DEF(iterations, int, (OptionDesc("number of iterations. Depends on indent", Options_None).setEnum( numIterations ).XE_DEPEND_ON(indent)), 1) \
 	\
@@ -23,8 +28,6 @@ XE_DECLARE_OPTIONS_GROUP(GroupPerformance, "Performance options", 0);
 	\
 	DEF(print, bool, OptionDesc("Print all assigned values", Options_Flag), false) \
 	DEF(lazy, bool, OptionDesc("Use lazy", Options_Flag).group(GroupPerformance), false) \
-
-// 	OPTIONS_DEF_GROUP("Performance options") 
 	
 XE_DECLARE_PROGRAM_OPTIONS(MyOptions, CREATE_MY_OPTIONLIST);
 XE_DEFINE_PROGRAM_OPTIONS_IMPL(MyOptions, CREATE_MY_OPTIONLIST);
@@ -52,7 +55,7 @@ int main(int argc, char **argv) {
 	{
 		MyOptions::Parser parser ("ExampleOptionParser", "0.1", Xenon::ArgumentParser::CompactHelp);
 		parser.setHelpText("A simple program options parser example.\n");
-		parser.setUsage (" [-gs] [--filename path] filenames ...");
+		parser.setUsage ("Usage: ExampleOptionParser [-gs] [--filename path] filenames ...");
 		if (parser.parse (opt, argc, argv) == MyOptions::Parser::PARSE_TERMINATE)
 			return 0;
 	}

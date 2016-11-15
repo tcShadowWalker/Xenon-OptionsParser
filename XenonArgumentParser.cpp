@@ -5,6 +5,7 @@
 #include <cassert>
 #include <memory>
 #include <sstream>
+#include <algorithm>
 
 namespace Xenon {
 namespace ArgumentParser {
@@ -100,7 +101,11 @@ template<class T> void printHelpImpl (OHP &hp,  const OptionDesc &desc, const T 
 		return;
 	if (hp.lastGroup != desc.assignedGroup) {
 		if (desc.assignedGroup) {
-			hp.out << "\n" << desc.assignedGroup->desc << "\n";
+			hp.out << "\n" << desc.assignedGroup->desc;
+			if (desc.assignedGroup->flags & Group_Required)
+				hp.out << " *";
+			hp.out << "\n";
+			
 		} else
 			hp.out << "\n";
 		hp.lastGroup = desc.assignedGroup;
@@ -148,7 +153,7 @@ void print_help (OHP &hp, const OptionDesc &desc, bool, bool defVal) {
 
 void OptionParserBase::printHelpHead (std::ostream &out, const AppInformation &appInfos) {
 	if (appInfos.usage)
-		out << "Usage: " << appInfos.programName << appInfos.usage << std::endl;
+		out << appInfos.usage << std::endl;
 	else
 		out << appInfos.programName << " " << appInfos.programVersion << std::endl;
 	if (appInfos.programHelpTextHeader)
@@ -158,12 +163,30 @@ void OptionParserBase::printHelpHead (std::ostream &out, const AppInformation &a
 
 //
 
+static void evalSelectedOption (const OptionDesc &selectedArg, char *nActiveGroupOptions, const OptionGroup **groups, const int maxGroups) {
+	if (selectedArg.assignedGroup) {
+		const OptionGroup **g = std::lower_bound (&groups[0], &groups[maxGroups], selectedArg.assignedGroup);
+		assert (g < &groups[maxGroups]);
+		assert (*g);
+		nActiveGroupOptions[ g - &groups[0] ]++;
+	}
+}
+
 OptionParserBase::ParseResult OptionParserBase::parse (int argc, char **argv, const AppInformation &appInfos)
 {
-	static const int maxArgLen = 63, maxPosArgs = 32;
-	char argName[maxArgLen + 1];
+	static const int maxArgLen = 63, maxPosArgs = 32, maxGroups = 32;
+	char argName[maxArgLen + 1], nActiveGroupOtions[maxGroups];
+	memset (&nActiveGroupOtions[0], 0, maxGroups);
 	
 	uint16_t positionalArgs[ maxPosArgs ];
+	const OptionGroup *groups[ maxGroups ], **lastGroupPtr = &groups[0];
+	this->_opt_enumerateGroups (lastGroupPtr, maxGroups);
+	std::sort (&groups[0], lastGroupPtr);
+	for (const OptionGroup *prev = NULL, **g = &groups[0]; g < lastGroupPtr; prev = *(g++)) {
+		if (prev == *g)
+			throw std::logic_error ("ArgumentParser: Multiple options within the same OptionGroup must appear in consecutive declaration order.");
+	}
+	
 	uint32_t numPositionalArgs = 0U;
 	for (int iArg = 1; iArg < argc; ++iArg)
 	{
@@ -171,12 +194,12 @@ OptionParserBase::ParseResult OptionParserBase::parse (int argc, char **argv, co
 		if (!thisArg[0] || (thisArg[0] == '-' && thisArg[1] == '\0'))
 			throw ArgumentParserError("Invalid argument syntax");
 		
+		OptionDesc selectedArg (NULL, 0);
 		if (thisArg[0] == '-' && thisArg[1] == '-') // Long option
 		{
 			thisArg += 2;
 			const char *sepPos = strchr (thisArg, '=');
 			if (sepPos && (sepPos - thisArg) < maxArgLen) {
-				std::cout << "s: " << sepPos << "\n";
 				memcpy (argName, thisArg, sepPos - thisArg);
 				argName[sepPos - thisArg] = '\0';
 				thisArg = argName;
@@ -184,7 +207,6 @@ OptionParserBase::ParseResult OptionParserBase::parse (int argc, char **argv, co
 				sepPos = NULL;
 			
 			const char *argValue = (sepPos) ? sepPos+1 : ((argc > iArg+1) ? argv[iArg+1] : NULL);
-			OptionDesc selectedArg (NULL, 0);
 			const int pflags = (!sepPos) ? PARSE_IS_NEXT_ARG : 0;
 			
 			if (_opt_parseLongArgument (thisArg, argValue, &selectedArg, pflags)) {
@@ -209,7 +231,6 @@ OptionParserBase::ParseResult OptionParserBase::parse (int argc, char **argv, co
 		{
 			if (thisArg[2] == '\0') { // one short-hand argument. MAY Have a parameter
 				const char *argValue = (argc > iArg+1) ? argv[iArg+1] : NULL;
-				OptionDesc selectedArg (NULL, 0);
 				if (!_opt_parseShortArgument (thisArg[1], argValue, &selectedArg)) {
 					if (!(appInfos.programOptions & IgnoreUnknown))
 						throw ArgumentParserError(std::string("Unknown short-form argument: ") + thisArg[1]);
@@ -225,6 +246,7 @@ OptionParserBase::ParseResult OptionParserBase::parse (int argc, char **argv, co
 							throw ArgumentParserError(std::string("Unknown short-form argument: ") + *s);
 					}
 					assert (selectedArg.flags & Options_Flag);
+					evalSelectedOption (selectedArg, nActiveGroupOtions, groups, lastGroupPtr - &groups[0]);
 				}
 			}
 		}
@@ -233,8 +255,16 @@ OptionParserBase::ParseResult OptionParserBase::parse (int argc, char **argv, co
 				throw ArgumentParserError("Too many positional arguments given.");
 			positionalArgs[numPositionalArgs++] = iArg;
 		}
+		if (selectedArg.description)
+			evalSelectedOption (selectedArg, nActiveGroupOtions, groups, lastGroupPtr - &groups[0]);
 	}
 	this->_opt_checkArguments(argv, numPositionalArgs, positionalArgs, appInfos);
+	for (const OptionGroup **g = &groups[0]; g < lastGroupPtr; ++g) {
+		if ( (*g)->flags & Group_Required && nActiveGroupOtions[ g - &groups[0] ] < 1)
+			throw ArgumentParserError(std::string("No option chosen for mandatory OptionGroup '") + (*g)->desc + "'");
+		if ( (*g)->flags & Group_Exclusive && nActiveGroupOtions[ g - &groups[0] ] > 1)
+			throw ArgumentParserError(std::string("Only one option may be chosen for OptionGroup '") + (*g)->desc + "'");
+	}
 	return PARSE_OK;
 }
 
