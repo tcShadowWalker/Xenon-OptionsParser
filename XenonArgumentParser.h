@@ -100,8 +100,11 @@ struct OptionParserBase
 protected:
 	void printHelpHead (std::ostream &out, const AppInformation &appInfos);
 	
+	enum ParseFlags {
+		PARSE_IS_NEXT_ARG = 1,
+	};
 	ParseResult parse (int argc, char **argv, const AppInformation &appInfos);
-	virtual bool _opt_parseLongArgument (const char *argName, const char *argValue, OptionDesc *selectedArg) = 0;
+	virtual bool _opt_parseLongArgument (const char *argName, const char *argValue, OptionDesc *selectedArg, int parseFlags = 0) = 0;
 	virtual bool _opt_parseShortArgument (char arg, const char *argValue, OptionDesc *selectedArg) = 0;
 	virtual void _opt_checkArguments (char **argv, uint32_t numPositionalArgs, uint16_t *positionalArgs, const AppInformation &appInfo) = 0;
 };
@@ -196,7 +199,7 @@ struct OPTIONS_CLASS_NAME##_Parser : public Xenon::ArgumentParser::OptionParserB
 protected:     \
 	OPTIONS_CLASS_NAME *data; \
 	\
-	bool _opt_parseLongArgument (const char *argName, const char *argValue, OptionDesc *selectedArg);     \
+	bool _opt_parseLongArgument (const char *argName, const char *argValue, OptionDesc *selectedArg, int parseFlags);     \
 	bool _opt_parseShortArgument (char arg, const char *argValue, OptionDesc *selectedArg);     \
 	void _opt_checkArguments (char **argv, uint32_t numPositionalArgs, uint16_t *positionalArgs, const Xenon::ArgumentParser::AppInformation &);     \
 };
@@ -205,7 +208,7 @@ protected:     \
  * @brief Provide parser implementation code for program options
  */
 #define XE_DEFINE_PROGRAM_OPTIONS_IMPL(OPTIONS_CLASS_NAME, OPTION_LIST_MACRO_NAME)     \
-bool OPTIONS_CLASS_NAME##_Parser::_opt_parseLongArgument (const char *argName, const char *argValue, OptionDesc *selectedArg) {      \
+bool OPTIONS_CLASS_NAME##_Parser::_opt_parseLongArgument (const char *argName, const char *argValue, OptionDesc *selectedArg, const int parseFlags) {      \
 	using namespace Xenon::ArgumentParser; \
 	OPTION_LIST_MACRO_NAME(XE_ARG_PARSE_OPTIONS_DEF_DO_PARSE)      \
 	/* implicit else: */ {      \
@@ -246,10 +249,9 @@ void OPTIONS_CLASS_NAME##_Parser::_opt_checkArguments (char **_opt_argv, uint32_
 
 #define XE_ARG_PARSE_OPTIONS_DEF_DO_PARSE(var_name, type, desc, def) \
 	if ( strcmp (argName, (desc).setName( _OPTIONS_str(var_name)).name) == 0) { \
-		if (!argValue && ((desc).flags & Options_Flag)) \
-			this->data->var_name = def; \
-		else \
-			ParseFunctions::parse ( this->data->var_name, argValue, (desc).setName( _OPTIONS_str(var_name))); \
+		if ( (parseFlags & PARSE_IS_NEXT_ARG) && ((desc).flags & Options_Flag)) \
+			argValue = NULL; \
+		ParseFunctions::parse ( this->data->var_name, argValue, (desc).setName( _OPTIONS_str(var_name))); \
 		this->data->setParameters |= (1U << this->data->PARAM_##var_name); \
 		*selectedArg = desc; \
 	} else

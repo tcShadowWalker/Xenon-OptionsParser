@@ -19,6 +19,7 @@ const char *numIterations[] = { "1", "2", "3", "4", 0 };
 	DEF(someInt, int, OptionDesc("my int", Options_None).setName("some-int"), 123) \
 	DEF(myFloat, float, OptionDesc("my float", Options_None).setName("some-float"), 45.6f) \
 	\
+	DEF(print, bool, OptionDesc("Print all assigned values", Options_Flag), false) \
 	DEF(lazy, bool, OptionDesc("Use lazy", Options_Flag), false) \
 
 // 	OPTIONS_DEF_GROUP("Performance options") 
@@ -53,7 +54,11 @@ int main(int argc, char **argv) {
 			return 0;
 	}
 	
-	CREATE_MY_OPTIONLIST(PRINT_MY_OPTION)
+	if (opt.print) {
+		std::cout << "Printing all assigned values:\n";
+		CREATE_MY_OPTIONLIST(PRINT_MY_OPTION)
+	}
+	
 	for (const std::string &file : opt.filename) {
 		std::cout << "File: " << file << "\n";
 	}

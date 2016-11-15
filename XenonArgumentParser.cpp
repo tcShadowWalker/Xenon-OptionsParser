@@ -4,22 +4,47 @@
 #include <cstring>
 #include <cassert>
 #include <memory>
+#include <sstream>
 
 namespace Xenon {
 namespace ArgumentParser {
 
+void printEnumValues (std::ostream &out, const char * const *ev, char delim = ' ') {
+	out << delim << *(ev++) << delim;
+	for (; *ev; ++ev)
+		out << "," << delim << *ev << delim;
+}
+
 namespace ParseFunctions {
+
+bool check (const char *argValue, const OptionDesc &desc) {
+	if (!argValue) {
+		if (desc.flags & Options_Flag)
+			return false; // Use default
+		throw ArgumentParserError ( std::string("OptionsParser: Missing argument for parameter '") + std::string(desc.name));
+	}
+	if (desc.enumeration_values) {
+		for (const char * const *ev = desc.enumeration_values; *ev; ++ev) {
+			if ( strcmp (*ev, argValue) == 0)
+				return true;
+		}
+		std::stringstream s;
+		s << "OptionsParser: Invalid argument for parameter '" << desc.name << "'. Valid arguments are: ";
+		printEnumValues (s, desc.enumeration_values);
+		throw ArgumentParserError ( s.str() );
+	}
+	return true;
+}
+
 void parse ( std::string &p, const char *argValue, const OptionDesc &desc )
 {
-	if (!argValue)
-		throw ArgumentParserError ( std::string("OptionsParser: Missing argument for parameter '") + std::string(desc.name));
+	if (!check (argValue, desc)) return;
 	p.assign (argValue);
 }
 
 void parse ( const char * &p, const char *argValue, const OptionDesc &desc )
 {
-	if (!argValue)
-		throw ArgumentParserError ( std::string("OptionsParser: Missing argument for parameter '") + std::string(desc.name));
+	if (!check (argValue, desc)) return;
 	p = argValue;
 }
 
@@ -30,20 +55,18 @@ void parse ( int32_t &p, const char *argValue, const OptionDesc &desc ) {
 }
 
 void parse ( int64_t &p, const char *argValue, const OptionDesc &desc ) {
-	if (!argValue)
-		throw ArgumentParserError ( std::string("OptionsParser: Missing argument for parameter '") + std::string(desc.name));
+	if (!check (argValue, desc)) return;
 	char *e;
 	p = strtol (argValue, &e, 10);
-	if (e == argValue)
+	if (e == argValue || *e != '\0')
 		throw ArgumentParserError ( std::string("OptionsParser: Could not parse argument '") + std::string(desc.name) + "'. Not a valid number");
 }
 
 void parse ( float &p, const char *argValue, const OptionDesc &desc ) {
-	if (!argValue)
-		throw ArgumentParserError ( std::string("OptionsParser: Missing argument for parameter '") + std::string(desc.name));
+	if (!check (argValue, desc)) return;
 	char *e;
 	p = strtof (argValue, &e);
-	if (e == argValue)
+	if (e == argValue || *e != '\0')
 		throw ArgumentParserError ( std::string("OptionsParser: Could not parse argument '") + std::string(desc.name) + "'. Not a valid floating-point number");
 }
 
@@ -52,7 +75,7 @@ void parse ( bool &p, const char *argValue, const OptionDesc &desc ) {
 		if ( (desc.flags & Options_Flag) == 0)
 			throw ArgumentParserError ( std::string("OptionsParser: Missing argument for parameter '") + std::string(desc.name));
 		p = true;
-		return; 
+		return;
 	}
 	if ( argValue[1] == '\0') { // One byte
 		if (argValue[0] == '1')
@@ -90,10 +113,8 @@ template<class T> void printHelpImpl (const OHP &hp,  const OptionDesc &desc, co
 	hp.out << &buf[ std::min (nbytes, align) ] << desc.description 
 		<< " (" << &req[1] << rep << "default: " << delim << defVal << delim;
 	if (desc.enumeration_values) {
-		const char * const *ev = desc.enumeration_values;
-		hp.out << "; values: " << delim << *(ev++) << delim;
-		for (; *ev; ++ev)
-			hp.out << ", " << delim << *ev << delim;
+		hp.out << "; values: ";
+		printEnumValues (hp.out, desc.enumeration_values, delim);
 	}
 	hp.out << ")\n";
 	if (!(hp.appInfo.programOptions & CompactHelp))
@@ -145,6 +166,7 @@ OptionParserBase::ParseResult OptionParserBase::parse (int argc, char **argv, co
 			thisArg += 2;
 			const char *sepPos = strchr (thisArg, '=');
 			if (sepPos && (sepPos - thisArg) < maxArgLen) {
+				std::cout << "s: " << sepPos << "\n";
 				memcpy (argName, thisArg, sepPos - thisArg);
 				argName[sepPos - thisArg] = '\0';
 				thisArg = argName;
@@ -153,11 +175,12 @@ OptionParserBase::ParseResult OptionParserBase::parse (int argc, char **argv, co
 			
 			const char *argValue = (sepPos) ? sepPos+1 : ((argc > iArg+1) ? argv[iArg+1] : NULL);
 			OptionDesc selectedArg (NULL, 0);
+			const int pflags = (!sepPos) ? PARSE_IS_NEXT_ARG : 0;
 			
-			if (_opt_parseLongArgument (thisArg, argValue, &selectedArg)) {
+			if (_opt_parseLongArgument (thisArg, argValue, &selectedArg, pflags)) {
 				// Ok.
 				assert (selectedArg.description != NULL);
-				if (!sepPos && !(selectedArg.flags & Options_Flag)) // Does consume additional arg
+				if ((pflags & PARSE_IS_NEXT_ARG) && !(selectedArg.flags & Options_Flag)) // Does consume additional arg
 					++iArg;
 			} else if ( (appInfos.programOptions & NoHelp) == 0 && strcmp (thisArg, "help") == 0) {
 				printHelp (std::cout, false, appInfos);
