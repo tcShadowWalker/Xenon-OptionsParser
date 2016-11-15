@@ -4,6 +4,7 @@
 
 const char *indentationValues[] = { "tabs", "spaces", "none", 0 };
 const char *numIterations[] = { "1", "2", "3", "4", 0 };
+const char *mergeAlgos[] = { "resolve", "recursive", "subtree", "ours", "octopus", 0 };
 
 XE_DECLARE_OPTIONS_GROUP(GenOptions, "General options", 0);
 XE_DECLARE_OPTIONS_GROUP(OpMode, "Operation mode", Xenon::ArgumentParser::Group_Exclusive | Xenon::ArgumentParser::Group_Required);
@@ -21,9 +22,10 @@ XE_DECLARE_OPTIONS_GROUP(GroupPerformance, "Performance options", 0);
 	DEF(log, std::string, OptionDesc("Path to logfile. If not given, log to stdout", Options_None).group(GenOptions), "") \
 	DEF(verbosity, int, OptionDesc("Log verbosity level (Value between 0 and 20)", Options_None, 'v').group(GenOptions), 6) \
 	\
-	DEF(prod_name, const char *, (OptionDesc("some name path. Only useful for operation mode 2", Options_None).setName("prod-name")), "") \
+	DEF(merge_algo, const char *, (OptionDesc("Name of algorithm to use. Only useful for merging", Options_None) \
+		.setName("merge-algorithm").XE_DEPEND_ON(merge).setEnum( mergeAlgos )), "") \
 	DEF(indent, std::string, (OptionDesc("Character used for indentation", Options_None).setEnum( indentationValues )), "tabs") \
-	DEF(iterations, int, (OptionDesc("number of iterations. Depends on indent", Options_None).setEnum( numIterations ).XE_DEPEND_ON(indent)), 1) \
+	DEF(iterations, int, (OptionDesc("Number of iterations.", Options_None).setEnum( numIterations )), 1) \
 	\
 	DEF(secret, bool, OptionDesc("A very secret option!", Options_Hidden | Options_Flag, 's'), true) \
 	DEF(del, bool, OptionDesc("Delete all files after operation is done", Options_Flag, 'd').setName("delete"), false) \
@@ -58,7 +60,7 @@ int main(int argc, char **argv) {
 	{
 		MyOptions::Parser parser ("ExampleOptionParser", "0.1", Xenon::ArgumentParser::CompactHelp);
 		parser.setHelpText("A simple program options parser example.\n");
-		parser.setUsage ("Usage: ExampleOptionParser [--merge | --split] [options] [--filename path] filenames ...");
+		parser.setUsage ("Usage: ExampleOptionParser [--merge | --split] [options] [--file path] filenames ...");
 		if (parser.parse (opt, argc, argv) == MyOptions::Parser::PARSE_TERMINATE)
 			return 0;
 	}
@@ -68,17 +70,19 @@ int main(int argc, char **argv) {
 		CREATE_MY_OPTIONLIST(PRINT_MY_OPTION)
 	}
 	
-	if (opt.merge)
+	if (opt.merge) {
+		if (opt.has_merge_algo())
+			std::cout << "Merge algorthm name: " << opt.merge_algo << "\n";
 		std::cout << "Will merge the following files:\n";
-	else if (opt.split)
+	} else if (opt.split) {
 		std::cout << "Will split the following files:\n";
+	}
 		
 	for (const std::string &file : opt.file) {
 		std::cout << "File: " << file << "\n";
 	}
 	
-	if (opt.has_prod_name())
-		std::cout << "Prod name: " << opt.prod_name << "\n";
+	
 	
 	if (opt.del)
 		std::cout << "Deleting all source files.\n";
