@@ -71,7 +71,7 @@ void parse ( bool &p, const char *argValue, const OptionDesc &desc ) {
 
 // Help:
 
-template<class T> void printHelpImpl (const OHP &hp,  const char *argName, const OptionDesc &desc, const T &defVal, char delim = '\0')
+template<class T> void printHelpImpl (const OHP &hp,  const OptionDesc &desc, const T &defVal, char delim = '\0')
 {
 	if ((desc.flags & Options_Hidden) && !hp.full)
 		return;
@@ -84,9 +84,9 @@ template<class T> void printHelpImpl (const OHP &hp,  const char *argName, const
 	char buf[align + 1];
 	memset (buf, ' ', align);
 	buf[align] = '\0';
-	hp.out <<  "--" << argName;
+	hp.out <<  "--" << desc.name;
 	
-	const int nbytes = (req[0] != '\0') + 2 + (desc.shortOption ? 4 : 0) + 2 + strlen(argName);
+	const int nbytes = (req[0] != '\0') + 2 + (desc.shortOption ? 4 : 0) + 2 + strlen(desc.name);
 	hp.out << &buf[ std::min (nbytes, align) ] << desc.description 
 		<< " (" << &req[1] << rep << "default: " << delim << defVal << delim;
 	if (desc.enumeration_values) {
@@ -101,20 +101,20 @@ template<class T> void printHelpImpl (const OHP &hp,  const char *argName, const
 	
 }
 
-void print_help (const OHP &hp, const char *argName, const OptionDesc &desc, const std::string &, const std::string &defVal) {
-	printHelpImpl (hp, argName, desc, defVal, '"');
+void print_help (const OHP &hp, const OptionDesc &desc, const std::string &, const std::string &defVal) {
+	printHelpImpl (hp, desc, defVal, '"');
 }
-void print_help (const OHP &hp, const char *argName, const OptionDesc &desc, const char* &, const char * &defVal) {
-	printHelpImpl (hp, argName, desc, defVal, '"');
+void print_help (const OHP &hp, const OptionDesc &desc, const char* &, const char * &defVal) {
+	printHelpImpl (hp, desc, defVal, '"');
 }
-void print_help (const OHP &hp, const char *argName, const OptionDesc &desc, int, int defVal) {
-	printHelpImpl (hp, argName, desc, defVal);
+void print_help (const OHP &hp, const OptionDesc &desc, int, int defVal) {
+	printHelpImpl (hp, desc, defVal);
 }
-void print_help (const OHP &hp, const char *argName, const OptionDesc &desc, float, float defVal) {
-	printHelpImpl (hp, argName, desc, defVal);
+void print_help (const OHP &hp, const OptionDesc &desc, float, float defVal) {
+	printHelpImpl (hp, desc, defVal);
 }
-void print_help (const OHP &hp, const char *argName, const OptionDesc &desc, bool, bool defVal) {
-	printHelpImpl (hp, argName, desc, defVal);
+void print_help (const OHP &hp, const OptionDesc &desc, bool, bool defVal) {
+	printHelpImpl (hp, desc, defVal);
 }
 }
 

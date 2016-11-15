@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <string>
 #include <stdint.h>
+#include <iostream>
 
 namespace Xenon {
 namespace ArgumentParser {
@@ -38,10 +39,8 @@ enum OptionParserFlags {
 };
 
 struct OptionDesc {
-	const char *name;
-	const char *description;
-	const char * const *enumeration_values;
-	const char *depend_on;
+	const char *name, *description;
+	const char * const *enumeration_values, *depend_on;
 	unsigned int flags;
 	char shortOption;
 	
@@ -50,7 +49,7 @@ struct OptionDesc {
 	
 	OptionDesc &setName (const char *name) { if (!this->name) { this->name = name; } return *this; }
 	OptionDesc &setEnum (const char * const * const enum_values) {enumeration_values = enum_values; return *this; }
-	OptionDesc &dependOn (const char *name) { depend_on = name; return *this; }
+	OptionDesc &dependOn (const char *other_name) { depend_on = other_name; return *this; }
 };
 
 struct RequiredArgumentMissing : public std::exception
@@ -83,7 +82,7 @@ struct AppInformation
 struct OptionParserBase
 {
 	struct HelpPrinter {
-		template<class T> void operator() (const char *argName, const OptionDesc &desc, const T &v, const T &d);
+		template<class T> void operator() (const OptionDesc &desc, const T &v, const T &d);
 		
 		HelpPrinter (std::ostream &o, const AppInformation & ai, bool f) : out(o), appInfo(ai), full(f) { }
 		std::ostream &out;
@@ -127,26 +126,26 @@ namespace ParseFunctions {
 	}
 #endif
 
-	void print_help (const OHP &, const char *argName, const OptionDesc &desc, const std::string &, const std::string &defVal);
-	void print_help (const OHP &, const char *argName, const OptionDesc &desc, const char* &, const char* &defVal);
-	void print_help (const OHP &, const char *argName, const OptionDesc &desc, int32_t, int32_t defVal);
-	void print_help (const OHP &, const char *argName, const OptionDesc &desc, int64_t, int64_t defVal);
-	void print_help (const OHP &, const char *argName, const OptionDesc &desc, float, float defVal);
-	void print_help (const OHP &, const char *argName, const OptionDesc &desc, bool, bool defVal);
+	void print_help (const OHP &, const OptionDesc &desc, const std::string &, const std::string &defVal);
+	void print_help (const OHP &, const OptionDesc &desc, const char* &, const char* &defVal);
+	void print_help (const OHP &, const OptionDesc &desc, int32_t, int32_t defVal);
+	void print_help (const OHP &, const OptionDesc &desc, int64_t, int64_t defVal);
+	void print_help (const OHP &, const OptionDesc &desc, float, float defVal);
+	void print_help (const OHP &, const OptionDesc &desc, bool, bool defVal);
 	
 #ifndef ARGUMENT_PARSER_NO_STL_SUPPORT
 	template<class T, class Alloc>
-	void print_help (const OHP &hp, const char *argName, const OptionDesc &desc, const std::vector<T, Alloc> &, const std::vector<T, Alloc> &) {
+	void print_help (const OHP &hp, const OptionDesc &desc, const std::vector<T, Alloc> &, const std::vector<T, Alloc> &) {
 		const T val;
-		print_help (hp, argName, desc, val, val);
+		print_help (hp, desc, val, val);
 	}
 #endif
 
 };
 
 template<class T>
-void OptionParserBase::HelpPrinter::operator() (const char *argName, const OptionDesc &desc, const T &v, const T &d) {
-	ParseFunctions::print_help (*this, argName, desc, v, d);
+void OptionParserBase::HelpPrinter::operator() (const OptionDesc &desc, const T &v, const T &d) {
+	ParseFunctions::print_help (*this, desc, v, d);
 }
 
 /**
@@ -235,40 +234,38 @@ void OPTIONS_CLASS_NAME##_Parser::_opt_checkArguments (char **_opt_argv, uint32_
 #define _OPTIONS_xstr(s) str(s)
 #define _OPTIONS_str(s) #s
 
-/// PUBLIC:
-#define OPTIONS_DEF_GROUP(group_name)
-
 /// PRIVATE:
-#define XE_ARG_PARSE_OPTIONS_DEF_MEMBER(name, type, desc, def) type name; \
-		bool has_##name () const { return setParameters & (1U << PARAM_##name); }
+#define XE_ARG_PARSE_OPTIONS_DEF_MEMBER(var_name, type, desc, def) type var_name; \
+		bool has_##var_name () const { return setParameters & (1U << PARAM_##var_name); }
 
-#define XE_ARG_PARSE_OPTIONS_DEF_FLAG(name, type, desc, def) PARAM_##name,
+#define XE_ARG_PARSE_OPTIONS_DEF_FLAG(var_name, type, desc, def) PARAM_##var_name,
 
-#define XE_ARG_PARSE_OPTIONS_DEF_OPERATION(name, type, desc, def) _opt_f( _OPTIONS_str(name), desc, this->name, (type const &) (def));
+#define XE_ARG_PARSE_OPTIONS_DEF_OPERATION(var_name, type, desc, def) _opt_f( (desc).setName(_OPTIONS_str(var_name)), this->var_name, (type const &) (def));
 
-#define XE_ARG_PARSE_OPTIONS_INIT_VAL(name, type, desc, def) , name(def)
+#define XE_ARG_PARSE_OPTIONS_INIT_VAL(var_name, type, desc, def) , var_name(def)
 
-#define XE_ARG_PARSE_OPTIONS_DEF_DO_PARSE(name, type, desc, def) if ( strcmp (argName, _OPTIONS_str(name)) == 0) { \
-		ParseFunctions::parse ( this->data->name, argValue, (desc).setName( _OPTIONS_str(name) ) ); \
-		this->data->setParameters |= (1U << this->data->PARAM_##name); \
+#define XE_ARG_PARSE_OPTIONS_DEF_DO_PARSE(var_name, type, desc, def) \
+	if ( strcmp (argName, (desc).setName( _OPTIONS_str(var_name)).name) == 0) { \
+		ParseFunctions::parse ( this->data->var_name, argValue, (desc).setName( _OPTIONS_str(var_name))); \
+		this->data->setParameters |= (1U << this->data->PARAM_##var_name); \
 		*selectedArg = desc; \
 	} else
 
-#define XE_ARG_PARSE_OPTIONS_DEF_DO_PARSE_SHORT(name, type, desc, def) if ( arg == (desc).shortOption ) { \
-		ParseFunctions::parse ( this->data->name, argValue, (desc).setName( _OPTIONS_str(name) ) ); \
-		this->data->setParameters |= (1U << this->data->PARAM_##name); \
+#define XE_ARG_PARSE_OPTIONS_DEF_DO_PARSE_SHORT(var_name, type, desc, def) if ( arg == (desc).shortOption ) { \
+		ParseFunctions::parse ( this->data->var_name, argValue, (desc).setName( _OPTIONS_str(var_name) ) ); \
+		this->data->setParameters |= (1U << this->data->PARAM_##var_name); \
 		*selectedArg = desc; \
 	} else
 
-#define XE_ARG_PARSE_OPTIONS_CHECK_ARGUMENTS(name, type, desc, def) \
-	if ((((desc).flags) & Options_Positional) && (!data->has_##name() || ((desc).flags & Options_Multiple)) && _opt_nextPositionalArg < _opt_numPositionalArgs) { \
+#define XE_ARG_PARSE_OPTIONS_CHECK_ARGUMENTS(var_name, type, desc, def) \
+	if ((((desc).flags) & Options_Positional) && (!data->has_##var_name() || ((desc).flags & Options_Multiple)) && _opt_nextPositionalArg < _opt_numPositionalArgs) { \
 		do { \
-			ParseFunctions::parse ( this->data->name, _opt_argv[_opt_positionalArgs[_opt_nextPositionalArg++]], (desc).setName( _OPTIONS_str(name) ) ); \
+			ParseFunctions::parse ( this->data->var_name, _opt_argv[_opt_positionalArgs[_opt_nextPositionalArg++]], (desc).setName( _OPTIONS_str(var_name) ) ); \
 		} while ((_opt_nextPositionalArg < _opt_numPositionalArgs) && ((desc).flags & Options_Multiple)); \
-		this->data->setParameters |= (1U << this->data->PARAM_##name); \
+		this->data->setParameters |= (1U << this->data->PARAM_##var_name); \
 	} \
-	if ((((desc).flags) & Options_Required) && !data->has_##name()) { \
-		throw RequiredArgumentMissing( _OPTIONS_str(name) ); }
+	if ((((desc).flags) & Options_Required) && !data->has_##var_name()) { \
+		throw RequiredArgumentMissing( _OPTIONS_str(var_name) ); }
 
 
 }

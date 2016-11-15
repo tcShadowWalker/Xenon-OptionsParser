@@ -2,32 +2,26 @@
 #include "XenonArgumentParser.h"
 #include <cstring>
 
-// TODO: Groups!
-// TODO: Modes
+const char *indentationValues[] = { "tabs", "spaces", "none", 0 };
+const char *numIterations[] = { "1", "2", "3", "4", 0 };
 
 #define CREATE_MY_OPTIONLIST(DEF) \
 	DEF(filename, std::vector<std::string>, OptionDesc("some file-path", Options_Required | Options_Multiple | Options_Positional, 'f'), std::vector<std::string>())  \
 	DEF(path, std::string, OptionDesc("base path", Options_None), "") \
 	DEF(output, std::string, OptionDesc("output filepath", Options_None, 'o'), "test.txt") \
 	\
-	DEF(prod_name, std::string, OptionDesc("some name path", Options_None).setName("some-other-name"), "") \
+	DEF(prod_name, std::string, (OptionDesc("some name path", Options_None).setName("prod-name")), "") \
+	DEF(indent, std::string, (OptionDesc("character used for indentation", Options_None).setEnum( indentationValues )), "tabs") \
+	DEF(iterations, int, (OptionDesc("number of iterations", Options_None).setEnum( numIterations ).dependOn("indent")), 1) \
+	\
 	DEF(secret, bool, OptionDesc("some secret option!", Options_Hidden | Options_Flag, 's'), true) \
 	DEF(flag, bool, OptionDesc("this is just a flag", Options_Flag, 'f'), false) \
-	DEF(someInt, int, OptionDesc("my int", Options_None), 123) \
-	DEF(myFloat, float, OptionDesc("my float", Options_None), 45.6f) \
+	DEF(someInt, int, OptionDesc("my int", Options_None).setName("some-int"), 123) \
+	DEF(myFloat, float, OptionDesc("my float", Options_None).setName("some-float"), 45.6f) \
 	\
-	OPTIONS_DEF_GROUP("Performance optionss") \
 	DEF(lazy, bool, OptionDesc("Use lazy", Options_Flag), false) \
-	
-#undef CREATE_MY_OPTIONLIST
 
-const char *indentationValues[] = { "tabs", "spaces", "none", 0 };
-const char *numIterations[] = { "1", "2", "3", "4", 0 };
-
-#define CREATE_MY_OPTIONLIST(DEF) \
-	DEF(prod_name, std::string, (OptionDesc("some name path", Options_None).setName("some-other-name")), "") \
-	DEF(indent, std::string, (OptionDesc("character used for indentation", Options_None).setEnum( indentationValues )), "tabs") \
-	DEF(iterations, int, (OptionDesc("number of iterations", Options_None).setEnum( numIterations )), 1)
+// 	OPTIONS_DEF_GROUP("Performance options") 
 	
 XE_DECLARE_PROGRAM_OPTIONS(MyOptions, CREATE_MY_OPTIONLIST);
 XE_DEFINE_PROGRAM_OPTIONS_IMPL(MyOptions, CREATE_MY_OPTIONLIST);
