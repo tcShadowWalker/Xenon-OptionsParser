@@ -10,11 +10,11 @@ XE_DECLARE_OPTIONS_GROUP(GroupPerformance, "Performance options", 0);
 #define CREATE_MY_OPTIONLIST(DEF) \
 	DEF(filename, std::vector<std::string>, OptionDesc("some file-path", Options_Required | Options_Multiple | Options_Positional, 'f'), std::vector<std::string>())  \
 	DEF(path, std::string, OptionDesc("base path", Options_None), "") \
-	DEF(output, std::string, OptionDesc("output filepath", Options_Flag, 'o'), "test.txt") \
+	DEF(output, std::string, OptionDesc("output filepath. Requires path option as well", Options_Flag, 'o').XE_DEPEND_ON(path), "test.txt") \
 	\
 	DEF(prod_name, std::string, (OptionDesc("some name path", Options_None).setName("prod-name")), "") \
 	DEF(indent, std::string, (OptionDesc("character used for indentation", Options_None).setEnum( indentationValues )), "tabs") \
-	DEF(iterations, int, (OptionDesc("number of iterations", Options_None).setEnum( numIterations ).dependOn("indent")), 1) \
+	DEF(iterations, int, (OptionDesc("number of iterations. Depends on indent", Options_None).setEnum( numIterations ).XE_DEPEND_ON(indent)), 1) \
 	\
 	DEF(secret, bool, OptionDesc("some secret option!", Options_Hidden | Options_Flag, 's'), true) \
 	DEF(flag, bool, OptionDesc("this is just a flag", Options_Flag, 'g'), false) \

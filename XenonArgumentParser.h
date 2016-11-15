@@ -46,18 +46,19 @@ struct OptionGroup {
 
 struct OptionDesc {
 	const char *name, *description;
-	const char * const *enumeration_values, *depend_on;
+	const char * const *enumeration_values;
 	const OptionGroup *assignedGroup;
+	uint64_t depends_on;
 	unsigned int flags;
 	char shortOption;
 	
 	OptionDesc (const char *desc, unsigned int flags = 0, char shortOpt = 0)
-	  : name(NULL), description(desc), enumeration_values(NULL), depend_on(NULL),
-	    assignedGroup(NULL), flags(flags), shortOption(shortOpt) { }
+	  : name(NULL), description(desc), enumeration_values(NULL), assignedGroup(NULL),
+	    depends_on(0), flags(flags), shortOption(shortOpt) { }
 	
 	OptionDesc &setName (const char *name) { if (!this->name) { this->name = name; } return *this; }
 	OptionDesc &setEnum (const char * const * const enum_values) {enumeration_values = enum_values; return *this; }
-	OptionDesc &dependOn (const char *other_name) { depend_on = other_name; return *this; }
+	OptionDesc &dependOn (int64_t option_bit) { depends_on |= option_bit; return *this; }
 	OptionDesc &group (const OptionGroup &grp) { this->assignedGroup = &grp; return *this; }
 };
 
@@ -187,11 +188,13 @@ struct OPTIONS_CLASS_NAME \
 	OPTIONS_CLASS_NAME ()     \
 		: setParameters(0) OPTION_LIST_MACRO_NAME(XE_ARG_PARSE_OPTIONS_INIT_VAL)   {}     \
 	typedef OPTIONS_CLASS_NAME##_Parser Parser; \
+	typedef OPTIONS_CLASS_NAME _XE_OPT_DATA; \
 }; \
 \
 struct OPTIONS_CLASS_NAME##_Parser : public Xenon::ArgumentParser::OptionParserBase, public Xenon::ArgumentParser::AppInformation { \
 	\
 	typedef Xenon::ArgumentParser::OptionDesc OptionDesc; \
+	typedef OPTIONS_CLASS_NAME _XE_OPT_DATA; \
 	void printHelp (std::ostream &out, bool full, const Xenon::ArgumentParser::AppInformation &appInfo) {     \
 		using namespace Xenon::ArgumentParser; \
 		printHelpHead(out, appInfo);     \
@@ -241,12 +244,15 @@ void OPTIONS_CLASS_NAME##_Parser::_opt_checkArguments (char **_opt_argv, uint32_
 {      \
 	using namespace Xenon::ArgumentParser; \
 	unsigned int _opt_nextPositionalArg = 0; \
-	OPTION_LIST_MACRO_NAME(XE_ARG_PARSE_OPTIONS_CHECK_ARGUMENTS)      \
+	OPTION_LIST_MACRO_NAME(XE_ARG_PARSE_OPTIONS_POSITIONAL_ARGUMENTS)      \
 	if ((_opt_nextPositionalArg < _opt_numPositionalArgs) && !(appInfo.programOptions & Xenon::ArgumentParser::IgnoreUnknown))  \
 		throw ArgumentParserError(std::string("Too many positional arguments"));    \
+	OPTION_LIST_MACRO_NAME(XE_ARG_PARSE_OPTIONS_CHECK_ARGUMENTS)      \
 }
 
 #define XE_DECLARE_OPTIONS_GROUP(GROUP_NAME, GROUP_DESC, GROUP_FLAGS) const Xenon::ArgumentParser::OptionGroup GROUP_NAME (GROUP_DESC);
+
+#define XE_DEPEND_ON(OPTION_NAME) dependOn ( (1U << _XE_OPT_DATA::PARAM_##OPTION_NAME) )
 
 #define _OPTIONS_xstr(s) str(s)
 #define _OPTIONS_str(s) #s
@@ -276,16 +282,24 @@ void OPTIONS_CLASS_NAME##_Parser::_opt_checkArguments (char **_opt_argv, uint32_
 		*selectedArg = desc; \
 	} else
 
-#define XE_ARG_PARSE_OPTIONS_CHECK_ARGUMENTS(var_name, type, desc, def) \
+#define XE_ARG_PARSE_OPTIONS_POSITIONAL_ARGUMENTS(var_name, type, desc, def) \
 	if ((((desc).flags) & Options_Positional) && (!data->has_##var_name() || ((desc).flags & Options_Multiple)) && _opt_nextPositionalArg < _opt_numPositionalArgs) { \
 		do { \
 			ParseFunctions::parse ( this->data->var_name, _opt_argv[_opt_positionalArgs[_opt_nextPositionalArg++]], (desc).setName( _OPTIONS_str(var_name) ) ); \
 		} while ((_opt_nextPositionalArg < _opt_numPositionalArgs) && ((desc).flags & Options_Multiple)); \
 		this->data->setParameters |= (1U << this->data->PARAM_##var_name); \
 	} \
-	if ((((desc).flags) & Options_Required) && !data->has_##var_name()) { \
-		throw RequiredArgumentMissing( _OPTIONS_str(var_name) ); }
 
+#define XE_ARG_PARSE_OPTIONS_CHECK_ARGUMENTS(var_name, type, macro_desc, def) \
+	{ \
+		OptionDesc &odesc = (macro_desc).setName( _OPTIONS_str(var_name) ); \
+		if (((odesc.flags) & Options_Required) && !data->has_##var_name()) { \
+			throw RequiredArgumentMissing( _OPTIONS_str(var_name) ); \
+		} \
+		if ( data->has_##var_name() && (odesc.depends_on & ~this->data->setParameters )) { \
+			throw ArgumentParserError ( std::string("OptionsParser: Option '") + std::string(odesc.name) + "' depends on options that are not given"); \
+		} \
+	}
 
 }
 }
