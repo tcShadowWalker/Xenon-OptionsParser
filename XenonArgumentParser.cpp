@@ -88,7 +88,14 @@ template<class T> void printHelpImpl (const OHP &hp,  const char *argName, const
 	
 	const int nbytes = (req[0] != '\0') + 2 + (desc.shortOption ? 4 : 0) + 2 + strlen(argName);
 	hp.out << &buf[ std::min (nbytes, align) ] << desc.description 
-		<< " (" << &req[1] << rep << "default: " << delim << defVal << delim << ")\n";
+		<< " (" << &req[1] << rep << "default: " << delim << defVal << delim;
+	if (desc.enumeration_values) {
+		const char * const *ev = desc.enumeration_values;
+		hp.out << "; values: " << delim << *(ev++) << delim;
+		for (; *ev; ++ev)
+			hp.out << ", " << delim << *ev << delim;
+	}
+	hp.out << ")\n";
 	if (!(hp.appInfo.programOptions & CompactHelp))
 		hp.out << '\n';
 	

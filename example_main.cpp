@@ -10,7 +10,7 @@
 	DEF(path, std::string, OptionDesc("base path", Options_None), "") \
 	DEF(output, std::string, OptionDesc("output filepath", Options_None, 'o'), "test.txt") \
 	\
-	DEF(prod_name, const char *, OptionDesc("some name path", Options_None), "") \
+	DEF(prod_name, std::string, OptionDesc("some name path", Options_None).setName("some-other-name"), "") \
 	DEF(secret, bool, OptionDesc("some secret option!", Options_Hidden | Options_Flag, 's'), true) \
 	DEF(flag, bool, OptionDesc("this is just a flag", Options_Flag, 'f'), false) \
 	DEF(someInt, int, OptionDesc("my int", Options_None), 123) \
@@ -19,7 +19,16 @@
 	OPTIONS_DEF_GROUP("Performance optionss") \
 	DEF(lazy, bool, OptionDesc("Use lazy", Options_Flag), false) \
 	
+#undef CREATE_MY_OPTIONLIST
 
+const char *indentationValues[] = { "tabs", "spaces", "none", 0 };
+const char *numIterations[] = { "1", "2", "3", "4", 0 };
+
+#define CREATE_MY_OPTIONLIST(DEF) \
+	DEF(prod_name, std::string, (OptionDesc("some name path", Options_None).setName("some-other-name")), "") \
+	DEF(indent, std::string, (OptionDesc("character used for indentation", Options_None).setEnum( indentationValues )), "tabs") \
+	DEF(iterations, int, (OptionDesc("number of iterations", Options_None).setEnum( numIterations )), 1)
+	
 XE_DECLARE_PROGRAM_OPTIONS(MyOptions, CREATE_MY_OPTIONLIST);
 XE_DEFINE_PROGRAM_OPTIONS_IMPL(MyOptions, CREATE_MY_OPTIONLIST);
 
@@ -40,9 +49,9 @@ int main(int argc, char **argv) {
 	}
 	
 	//CREATE_MY_OPTIONLIST(PRINT_MY_OPTION)
-	for (const std::string &file : opt.filename) {
+	/*for (const std::string &file : opt.filename) {
 		std::cout << "File: " << file << "\n";
-	}
+	}*/
 	
 	if (opt.has_prod_name())
 		std::cout << "Prod name: " << opt.prod_name << "\n";

@@ -40,15 +40,16 @@ enum OptionParserFlags {
 struct OptionDesc {
 	const char *name;
 	const char *description;
-	const char **enumeration_values, *depend_on;
+	const char * const *enumeration_values;
+	const char *depend_on;
 	unsigned int flags;
 	char shortOption;
 	
 	OptionDesc (const char *desc, unsigned int flags = 0, char shortOpt = 0)
 		: name(NULL), description(desc), enumeration_values(NULL), depend_on(NULL), flags(flags), shortOption(shortOpt) { }
 	
-	OptionDesc &setName (const char *name) { this->name = name; return *this; }
-	OptionDesc &setEnumeration (const char **enum_values) {enumeration_values = enum_values; return *this; }
+	OptionDesc &setName (const char *name) { if (!this->name) { this->name = name; } return *this; }
+	OptionDesc &setEnum (const char * const * const enum_values) {enumeration_values = enum_values; return *this; }
 	OptionDesc &dependOn (const char *name) { depend_on = name; return *this; }
 };
 
@@ -248,25 +249,25 @@ void OPTIONS_CLASS_NAME##_Parser::_opt_checkArguments (char **_opt_argv, uint32_
 #define XE_ARG_PARSE_OPTIONS_INIT_VAL(name, type, desc, def) , name(def)
 
 #define XE_ARG_PARSE_OPTIONS_DEF_DO_PARSE(name, type, desc, def) if ( strcmp (argName, _OPTIONS_str(name)) == 0) { \
-		ParseFunctions::parse ( this->data->name, argValue, desc.setName( _OPTIONS_str(name) ) ); \
+		ParseFunctions::parse ( this->data->name, argValue, (desc).setName( _OPTIONS_str(name) ) ); \
 		this->data->setParameters |= (1U << this->data->PARAM_##name); \
 		*selectedArg = desc; \
 	} else
 
-#define XE_ARG_PARSE_OPTIONS_DEF_DO_PARSE_SHORT(name, type, desc, def) if ( arg == desc.shortOption ) { \
-		ParseFunctions::parse ( this->data->name, argValue, desc.setName( _OPTIONS_str(name) ) ); \
+#define XE_ARG_PARSE_OPTIONS_DEF_DO_PARSE_SHORT(name, type, desc, def) if ( arg == (desc).shortOption ) { \
+		ParseFunctions::parse ( this->data->name, argValue, (desc).setName( _OPTIONS_str(name) ) ); \
 		this->data->setParameters |= (1U << this->data->PARAM_##name); \
 		*selectedArg = desc; \
 	} else
 
 #define XE_ARG_PARSE_OPTIONS_CHECK_ARGUMENTS(name, type, desc, def) \
-	if (((desc.flags) & Options_Positional) && (!data->has_##name() || (desc.flags & Options_Multiple)) && _opt_nextPositionalArg < _opt_numPositionalArgs) { \
+	if ((((desc).flags) & Options_Positional) && (!data->has_##name() || ((desc).flags & Options_Multiple)) && _opt_nextPositionalArg < _opt_numPositionalArgs) { \
 		do { \
-			ParseFunctions::parse ( this->data->name, _opt_argv[_opt_positionalArgs[_opt_nextPositionalArg++]], desc.setName( _OPTIONS_str(name) ) ); \
-		} while ((_opt_nextPositionalArg < _opt_numPositionalArgs) && (desc.flags & Options_Multiple)); \
+			ParseFunctions::parse ( this->data->name, _opt_argv[_opt_positionalArgs[_opt_nextPositionalArg++]], (desc).setName( _OPTIONS_str(name) ) ); \
+		} while ((_opt_nextPositionalArg < _opt_numPositionalArgs) && ((desc).flags & Options_Multiple)); \
 		this->data->setParameters |= (1U << this->data->PARAM_##name); \
 	} \
-	if (((desc.flags) & Options_Required) && !data->has_##name()) { \
+	if ((((desc).flags) & Options_Required) && !data->has_##name()) { \
 		throw RequiredArgumentMissing( _OPTIONS_str(name) ); }
 
 
