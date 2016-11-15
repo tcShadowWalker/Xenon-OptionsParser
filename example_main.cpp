@@ -6,11 +6,11 @@
 // TODO: Modes
 
 #define CREATE_MY_OPTIONLIST(DEF) \
-	DEF(filename, std::vector<std::string>, OptionDesc("some file-path", Options_Required | Options_Multiple | Options_Positional, 'f'), std::vector<std::string>()) \
+	DEF(filename, std::vector<std::string>, OptionDesc("some file-path", Options_Required | Options_Multiple | Options_Positional, 'f'), std::vector<std::string>())  \
 	DEF(path, std::string, OptionDesc("base path", Options_None), "") \
 	DEF(output, std::string, OptionDesc("output filepath", Options_None, 'o'), "test.txt") \
 	\
-	DEF(prod_name, std::string, OptionDesc("some name path", Options_None), "") \
+	DEF(prod_name, const char *, OptionDesc("some name path", Options_None), "") \
 	DEF(secret, bool, OptionDesc("some secret option!", Options_Hidden | Options_Flag, 's'), true) \
 	DEF(flag, bool, OptionDesc("this is just a flag", Options_Flag, 'f'), false) \
 	DEF(someInt, int, OptionDesc("my int", Options_None), 123) \
@@ -43,6 +43,9 @@ int main(int argc, char **argv) {
 	for (const std::string &file : opt.filename) {
 		std::cout << "File: " << file << "\n";
 	}
+	
+	if (opt.has_prod_name())
+		std::cout << "Prod name: " << opt.prod_name << "\n";
 	
 	return 0;
 }

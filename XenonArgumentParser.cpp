@@ -8,20 +8,28 @@
 namespace Xenon {
 namespace ArgumentParser {
 
-void OptionParserBase::_opt_parse_arg ( std::string &p, const char *argValue, const OptionDesc &desc )
+namespace ParseFunctions {
+void parse ( std::string &p, const char *argValue, const OptionDesc &desc )
 {
 	if (!argValue)
 		throw ArgumentParserError ( std::string("OptionsParser: Missing argument for parameter '") + std::string(desc.name));
 	p.assign (argValue);
 }
 
-void OptionParserBase::_opt_parse_arg ( int32_t &p, const char *argValue, const OptionDesc &desc ) {
+void parse ( const char * &p, const char *argValue, const OptionDesc &desc )
+{
+	if (!argValue)
+		throw ArgumentParserError ( std::string("OptionsParser: Missing argument for parameter '") + std::string(desc.name));
+	p = argValue;
+}
+
+void parse ( int32_t &p, const char *argValue, const OptionDesc &desc ) {
 	int64_t tmp;
-	_opt_parse_arg (tmp, argValue, desc);
+	parse (tmp, argValue, desc);
 	p = tmp;
 }
 
-void OptionParserBase::_opt_parse_arg ( int64_t &p, const char *argValue, const OptionDesc &desc ) {
+void parse ( int64_t &p, const char *argValue, const OptionDesc &desc ) {
 	if (!argValue)
 		throw ArgumentParserError ( std::string("OptionsParser: Missing argument for parameter '") + std::string(desc.name));
 	char *e;
@@ -30,7 +38,7 @@ void OptionParserBase::_opt_parse_arg ( int64_t &p, const char *argValue, const 
 		throw ArgumentParserError ( std::string("OptionsParser: Could not parse argument '") + std::string(desc.name) + "'. Not a valid number");
 }
 
-void OptionParserBase::_opt_parse_arg ( float &p, const char *argValue, const OptionDesc &desc ) {
+void parse ( float &p, const char *argValue, const OptionDesc &desc ) {
 	if (!argValue)
 		throw ArgumentParserError ( std::string("OptionsParser: Missing argument for parameter '") + std::string(desc.name));
 	char *e;
@@ -39,7 +47,7 @@ void OptionParserBase::_opt_parse_arg ( float &p, const char *argValue, const Op
 		throw ArgumentParserError ( std::string("OptionsParser: Could not parse argument '") + std::string(desc.name) + "'. Not a valid floating-point number");
 }
 
-void OptionParserBase::_opt_parse_arg ( bool &p, const char *argValue, const OptionDesc &desc ) {
+void parse ( bool &p, const char *argValue, const OptionDesc &desc ) {
 	if (!argValue) {
 		if ( (desc.flags & Options_Flag) == 0)
 			throw ArgumentParserError ( std::string("OptionsParser: Missing argument for parameter '") + std::string(desc.name));
@@ -61,43 +69,46 @@ void OptionParserBase::_opt_parse_arg ( bool &p, const char *argValue, const Opt
 		throw ArgumentParserError ( std::string("OptionsParser: Could not parse argument '") + std::string(desc.name) + "'. Not a valid boolean value");
 }
 
-//
+// Help:
 
-template<class T> void printHelpImpl (std::ostream &out, uint32_t programOptions, bool full,
-				      const char *argName, const OptionDesc &desc, const T &defVal, char delim = '\0')
+template<class T> void printHelpImpl (const OHP &hp,  const char *argName, const OptionDesc &desc, const T &defVal, char delim = '\0')
 {
-	if ((desc.flags & Options_Hidden) && !full)
+	if ((desc.flags & Options_Hidden) && !hp.full)
 		return;
 	const char *req = (desc.flags & Options_Required) ? "*required; " : " \0";
 	const char *rep = (desc.flags & Options_Multiple) ? "multiple; " : "";
-	out << ' ' << req[0] << ' ';
+	hp.out << ' ' << req[0] << ' ';
 	if (desc.shortOption)
-		out << "-" << desc.shortOption << ", ";
+		hp.out << "-" << desc.shortOption << ", ";
 	const int align = 28;
 	char buf[align + 1];
 	memset (buf, ' ', align);
 	buf[align] = '\0';
-	out <<  "--" << argName;
+	hp.out <<  "--" << argName;
 	
 	const int nbytes = (req[0] != '\0') + 2 + (desc.shortOption ? 4 : 0) + 2 + strlen(argName);
-	out << &buf[ std::min (nbytes, align) ] << desc.description 
+	hp.out << &buf[ std::min (nbytes, align) ] << desc.description 
 		<< " (" << &req[1] << rep << "default: " << delim << defVal << delim << ")\n";
-	if (!(programOptions & CompactHelp))
-		out << '\n';
+	if (!(hp.appInfo.programOptions & CompactHelp))
+		hp.out << '\n';
 	
 }
 
-void OptionParserBase::HelpPrinter::operator() (const char *argName, const OptionDesc &desc, const std::string &, const std::string &defVal) {
-	printHelpImpl (out, appInfo.programOptions, full, argName, desc, defVal, '"');
+void print_help (const OHP &hp, const char *argName, const OptionDesc &desc, const std::string &, const std::string &defVal) {
+	printHelpImpl (hp, argName, desc, defVal, '"');
 }
-void OptionParserBase::HelpPrinter::operator() (const char *argName, const OptionDesc &desc, int, int defVal) {
-	printHelpImpl (out, appInfo.programOptions, full, argName, desc, defVal);
+void print_help (const OHP &hp, const char *argName, const OptionDesc &desc, const char* &, const char * &defVal) {
+	printHelpImpl (hp, argName, desc, defVal, '"');
 }
-void OptionParserBase::HelpPrinter::operator() (const char *argName, const OptionDesc &desc, float, float defVal) {
-	printHelpImpl (out, appInfo.programOptions, full, argName, desc, defVal);
+void print_help (const OHP &hp, const char *argName, const OptionDesc &desc, int, int defVal) {
+	printHelpImpl (hp, argName, desc, defVal);
 }
-void OptionParserBase::HelpPrinter::operator() (const char *argName, const OptionDesc &desc, bool, bool defVal) {
-	printHelpImpl (out, appInfo.programOptions, full, argName, desc, defVal);
+void print_help (const OHP &hp, const char *argName, const OptionDesc &desc, float, float defVal) {
+	printHelpImpl (hp, argName, desc, defVal);
+}
+void print_help (const OHP &hp, const char *argName, const OptionDesc &desc, bool, bool defVal) {
+	printHelpImpl (hp, argName, desc, defVal);
+}
 }
 
 void OptionParserBase::printHelpHead (std::ostream &out, const AppInformation &appInfos) {
@@ -154,7 +165,7 @@ OptionParserBase::ParseResult OptionParserBase::parse (int argc, char **argv, co
 				if (!(appInfos.programOptions & IgnoreUnknown))
 					throw ArgumentParserError(std::string("Unknown argument: ") + thisArg);
 			}
-		} else if (thisArg[0] == '-' && thisArg[1] != '-') // Short option
+		} else if (thisArg[0] == '-' && thisArg[1] != '-' && thisArg[1] != '\0') // Short option
 		{
 			if (thisArg[2] == '\0') { // one short-hand argument. MAY Have a parameter
 				const char *argValue = (argc > iArg+1) ? argv[iArg+1] : NULL;
