@@ -101,9 +101,9 @@ template<class T> void printHelpImpl (OHP &hp,  const OptionDesc &desc, const T 
 		return;
 	if (hp.lastGroup != desc.assignedGroup) {
 		if (desc.assignedGroup) {
-			hp.out << "\n" << desc.assignedGroup->desc;
+			hp.out << "\n" << desc.assignedGroup->desc << ": ";
 			if (desc.assignedGroup->flags & Group_Required)
-				hp.out << " *";
+				hp.out << "*";
 			hp.out << "\n";
 			
 		} else
@@ -111,7 +111,6 @@ template<class T> void printHelpImpl (OHP &hp,  const OptionDesc &desc, const T 
 		hp.lastGroup = desc.assignedGroup;
 	}
 	const char *req = (desc.flags & Options_Required) ? "*required; " : " \0";
-	const char *rep = (desc.flags & Options_Multiple) ? "multiple; " : "";
 	hp.out << ' ' << req[0] << ' ';
 	if (desc.shortOption)
 		hp.out << "-" << desc.shortOption << ", ";
@@ -122,8 +121,11 @@ template<class T> void printHelpImpl (OHP &hp,  const OptionDesc &desc, const T 
 	hp.out <<  "--" << desc.name;
 	
 	const int nbytes = (req[0] != '\0') + 2 + (desc.shortOption ? 4 : 0) + 2 + strlen(desc.name);
-	hp.out << &buf[ std::min (nbytes, align) ] << desc.description 
-		<< " (" << &req[1] << rep << "default: " << delim << defVal << delim;
+	hp.out << &buf[ std::min (nbytes, align) ] << desc.description << " (" << &req[1];
+	if (!(desc.flags & Options_Multiple))
+		hp.out << "default: " << delim << defVal << delim;
+	else
+		hp.out << "multiple";
 	if (desc.enumeration_values) {
 		hp.out << "; values: ";
 		printEnumValues (hp.out, desc.enumeration_values, delim);
