@@ -16,7 +16,7 @@ enum OptionsFlags {
 	Options_Hidden           = 1U << 0,
 	/// Positional parameter can be given without the argument name or short-flag
 	Options_Positional       = 1U << 1,
-	/// This parameter requires no argument value, but serves only as a flag. Must be of type bool.
+	/// This parameter requires no argument value, but serves as a flag. If no argument is given, it's default value is assigned.
 	Options_Flag             = 1U << 2,
 	/// This parameter is mandatory; If not given, evaluation will fail.
 	Options_Required         = 1U << 3,
@@ -246,7 +246,10 @@ void OPTIONS_CLASS_NAME##_Parser::_opt_checkArguments (char **_opt_argv, uint32_
 
 #define XE_ARG_PARSE_OPTIONS_DEF_DO_PARSE(var_name, type, desc, def) \
 	if ( strcmp (argName, (desc).setName( _OPTIONS_str(var_name)).name) == 0) { \
-		ParseFunctions::parse ( this->data->var_name, argValue, (desc).setName( _OPTIONS_str(var_name))); \
+		if (!argValue && ((desc).flags & Options_Flag)) \
+			this->data->var_name = def; \
+		else \
+			ParseFunctions::parse ( this->data->var_name, argValue, (desc).setName( _OPTIONS_str(var_name))); \
 		this->data->setParameters |= (1U << this->data->PARAM_##var_name); \
 		*selectedArg = desc; \
 	} else
