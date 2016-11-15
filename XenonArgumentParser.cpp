@@ -94,10 +94,17 @@ void parse ( bool &p, const char *argValue, const OptionDesc &desc ) {
 
 // Help:
 
-template<class T> void printHelpImpl (const OHP &hp,  const OptionDesc &desc, const T &defVal, char delim = '\0')
+template<class T> void printHelpImpl (OHP &hp,  const OptionDesc &desc, const T &defVal, char delim = '\0')
 {
 	if ((desc.flags & Options_Hidden) && !hp.full)
 		return;
+	if (hp.lastGroup != desc.assignedGroup) {
+		if (desc.assignedGroup) {
+			hp.out << "\n" << desc.assignedGroup->desc << "\n";
+		} else
+			hp.out << "\n";
+		hp.lastGroup = desc.assignedGroup;
+	}
 	const char *req = (desc.flags & Options_Required) ? "*required; " : " \0";
 	const char *rep = (desc.flags & Options_Multiple) ? "multiple; " : "";
 	hp.out << ' ' << req[0] << ' ';
@@ -122,25 +129,28 @@ template<class T> void printHelpImpl (const OHP &hp,  const OptionDesc &desc, co
 	
 }
 
-void print_help (const OHP &hp, const OptionDesc &desc, const std::string &, const std::string &defVal) {
+void print_help (OHP &hp, const OptionDesc &desc, const std::string &, const std::string &defVal) {
 	printHelpImpl (hp, desc, defVal, '"');
 }
-void print_help (const OHP &hp, const OptionDesc &desc, const char* &, const char * &defVal) {
+void print_help (OHP &hp, const OptionDesc &desc, const char* &, const char * &defVal) {
 	printHelpImpl (hp, desc, defVal, '"');
 }
-void print_help (const OHP &hp, const OptionDesc &desc, int, int defVal) {
+void print_help (OHP &hp, const OptionDesc &desc, int, int defVal) {
 	printHelpImpl (hp, desc, defVal);
 }
-void print_help (const OHP &hp, const OptionDesc &desc, float, float defVal) {
+void print_help (OHP &hp, const OptionDesc &desc, float, float defVal) {
 	printHelpImpl (hp, desc, defVal);
 }
-void print_help (const OHP &hp, const OptionDesc &desc, bool, bool defVal) {
+void print_help (OHP &hp, const OptionDesc &desc, bool, bool defVal) {
 	printHelpImpl (hp, desc, defVal);
 }
 }
 
 void OptionParserBase::printHelpHead (std::ostream &out, const AppInformation &appInfos) {
-	out << appInfos.programName << " " << appInfos.programVersion << std::endl;
+	if (appInfos.usage)
+		out << "Usage: " << appInfos.programName << appInfos.usage << std::endl;
+	else
+		out << appInfos.programName << " " << appInfos.programVersion << std::endl;
 	if (appInfos.programHelpTextHeader)
 		out << appInfos.programHelpTextHeader;
 	out << std::endl;

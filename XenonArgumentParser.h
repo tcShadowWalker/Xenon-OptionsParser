@@ -38,18 +38,27 @@ enum OptionParserFlags {
 	CompactHelp    = 1U << 4,
 };
 
+struct OptionGroup {
+	const char *desc;
+	
+	OptionGroup (const char *desc) : desc(desc) { }
+};
+
 struct OptionDesc {
 	const char *name, *description;
 	const char * const *enumeration_values, *depend_on;
+	const OptionGroup *assignedGroup;
 	unsigned int flags;
 	char shortOption;
 	
 	OptionDesc (const char *desc, unsigned int flags = 0, char shortOpt = 0)
-		: name(NULL), description(desc), enumeration_values(NULL), depend_on(NULL), flags(flags), shortOption(shortOpt) { }
+	  : name(NULL), description(desc), enumeration_values(NULL), depend_on(NULL),
+	    assignedGroup(NULL), flags(flags), shortOption(shortOpt) { }
 	
 	OptionDesc &setName (const char *name) { if (!this->name) { this->name = name; } return *this; }
 	OptionDesc &setEnum (const char * const * const enum_values) {enumeration_values = enum_values; return *this; }
 	OptionDesc &dependOn (const char *other_name) { depend_on = other_name; return *this; }
+	OptionDesc &group (const OptionGroup &grp) { this->assignedGroup = &grp; return *this; }
 };
 
 struct RequiredArgumentMissing : public std::exception
@@ -70,13 +79,15 @@ struct ArgumentParserError : public std::runtime_error
 struct AppInformation
 {
 	unsigned int programOptions;
-	const char *programName, *programVersion, *programHelpTextHeader, *programHelpTextTail;
+	const char *programName, *programVersion, *programHelpTextHeader, *programHelpTextTail, *usage;
 	std::ostream *helpOutputStream; ///< If NULL; default is std::cout
 	
 	AppInformation (const char *appName, const char *version, unsigned int programOptions = 0)
-		: programOptions(programOptions), programName(appName), programVersion(version), programHelpTextHeader(NULL), helpOutputStream(NULL) { }
+		: programOptions(programOptions), programName(appName), programVersion(version),
+		programHelpTextHeader(NULL), programHelpTextTail(NULL), usage(NULL), helpOutputStream(NULL) { }
 	
-	void setHelpText (const char *head, const char *tail = NULL) { programHelpTextHeader = head; programHelpTextTail = tail; }
+	AppInformation &setHelpText (const char *head, const char *tail = NULL) { programHelpTextHeader = head; programHelpTextTail = tail; return *this; }
+	AppInformation &setUsage (const char *txt) { usage = txt; return *this; }
 };
 
 struct OptionParserBase
@@ -84,10 +95,11 @@ struct OptionParserBase
 	struct HelpPrinter {
 		template<class T> void operator() (const OptionDesc &desc, const T &v, const T &d);
 		
-		HelpPrinter (std::ostream &o, const AppInformation & ai, bool f) : out(o), appInfo(ai), full(f) { }
+		HelpPrinter (std::ostream &o, const AppInformation & ai, bool f) : out(o), appInfo(ai), full(f), lastGroup(NULL) { }
 		std::ostream &out;
 		const AppInformation &appInfo;
 		bool full;
+		const OptionGroup *lastGroup;
 	};
 	
 	enum ParseResult {
@@ -129,16 +141,16 @@ namespace ParseFunctions {
 	}
 #endif
 
-	void print_help (const OHP &, const OptionDesc &desc, const std::string &, const std::string &defVal);
-	void print_help (const OHP &, const OptionDesc &desc, const char* &, const char* &defVal);
-	void print_help (const OHP &, const OptionDesc &desc, int32_t, int32_t defVal);
-	void print_help (const OHP &, const OptionDesc &desc, int64_t, int64_t defVal);
-	void print_help (const OHP &, const OptionDesc &desc, float, float defVal);
-	void print_help (const OHP &, const OptionDesc &desc, bool, bool defVal);
+	void print_help (OHP &, const OptionDesc &desc, const std::string &, const std::string &defVal);
+	void print_help (OHP &, const OptionDesc &desc, const char* &, const char* &defVal);
+	void print_help (OHP &, const OptionDesc &desc, int32_t, int32_t defVal);
+	void print_help (OHP &, const OptionDesc &desc, int64_t, int64_t defVal);
+	void print_help (OHP &, const OptionDesc &desc, float, float defVal);
+	void print_help (OHP &, const OptionDesc &desc, bool, bool defVal);
 	
 #ifndef ARGUMENT_PARSER_NO_STL_SUPPORT
 	template<class T, class Alloc>
-	void print_help (const OHP &hp, const OptionDesc &desc, const std::vector<T, Alloc> &, const std::vector<T, Alloc> &) {
+	void print_help (OHP &hp, const OptionDesc &desc, const std::vector<T, Alloc> &, const std::vector<T, Alloc> &) {
 		const T val;
 		print_help (hp, desc, val, val);
 	}
@@ -233,6 +245,8 @@ void OPTIONS_CLASS_NAME##_Parser::_opt_checkArguments (char **_opt_argv, uint32_
 	if ((_opt_nextPositionalArg < _opt_numPositionalArgs) && !(appInfo.programOptions & Xenon::ArgumentParser::IgnoreUnknown))  \
 		throw ArgumentParserError(std::string("Too many positional arguments"));    \
 }
+
+#define XE_DECLARE_OPTIONS_GROUP(GROUP_NAME, GROUP_DESC, GROUP_FLAGS) const Xenon::ArgumentParser::OptionGroup GROUP_NAME (GROUP_DESC);
 
 #define _OPTIONS_xstr(s) str(s)
 #define _OPTIONS_str(s) #s

@@ -5,6 +5,8 @@
 const char *indentationValues[] = { "tabs", "spaces", "none", 0 };
 const char *numIterations[] = { "1", "2", "3", "4", 0 };
 
+XE_DECLARE_OPTIONS_GROUP(GroupPerformance, "Performance options", 0);
+
 #define CREATE_MY_OPTIONLIST(DEF) \
 	DEF(filename, std::vector<std::string>, OptionDesc("some file-path", Options_Required | Options_Multiple | Options_Positional, 'f'), std::vector<std::string>())  \
 	DEF(path, std::string, OptionDesc("base path", Options_None), "") \
@@ -15,12 +17,12 @@ const char *numIterations[] = { "1", "2", "3", "4", 0 };
 	DEF(iterations, int, (OptionDesc("number of iterations", Options_None).setEnum( numIterations ).dependOn("indent")), 1) \
 	\
 	DEF(secret, bool, OptionDesc("some secret option!", Options_Hidden | Options_Flag, 's'), true) \
-	DEF(flag, bool, OptionDesc("this is just a flag", Options_Flag, 'f'), false) \
+	DEF(flag, bool, OptionDesc("this is just a flag", Options_Flag, 'g'), false) \
 	DEF(someInt, int, OptionDesc("my int", Options_None).setName("some-int"), 123) \
 	DEF(myFloat, float, OptionDesc("my float", Options_None).setName("some-float"), 45.6f) \
 	\
 	DEF(print, bool, OptionDesc("Print all assigned values", Options_Flag), false) \
-	DEF(lazy, bool, OptionDesc("Use lazy", Options_Flag), false) \
+	DEF(lazy, bool, OptionDesc("Use lazy", Options_Flag).group(GroupPerformance), false) \
 
 // 	OPTIONS_DEF_GROUP("Performance options") 
 	
@@ -50,6 +52,7 @@ int main(int argc, char **argv) {
 	{
 		MyOptions::Parser parser ("ExampleOptionParser", "0.1", Xenon::ArgumentParser::CompactHelp);
 		parser.setHelpText("A simple program options parser example.\n");
+		parser.setUsage (" [-gs] [--filename path] filenames ...");
 		if (parser.parse (opt, argc, argv) == MyOptions::Parser::PARSE_TERMINATE)
 			return 0;
 	}
