@@ -10,6 +10,7 @@
 namespace Xenon {
 namespace ArgumentParser {
 
+/// @brief Combinable flags for each single program option.
 enum OptionsFlags {
 	Options_None             = 0,
 	/// Do not print this parameter when --help is given.
@@ -25,6 +26,7 @@ enum OptionsFlags {
 	Options_Multiple         = 1U << 4,
 };
 
+/// @brief Flags given to the 'parse' function of a generated parser
 enum OptionParserFlags {
 	/// Do not generate help text. Can be used to provide --help generation manually.
 	NoHelp         = 1U << 0,
@@ -38,13 +40,20 @@ enum OptionParserFlags {
 	CompactHelp    = 1U << 4,
 };
 
+/// @brief Flags for OptionGroups
 enum OptionGroupFlags {
-	/// At most one option can be active
+	/// At most one option can be active within this group
 	Group_Exclusive      = 1U << 0,
 	/// At least one option from this group must be active
 	Group_Required       = 1U << 1,
 };
 
+/**
+ * @brief OptionGroups can be used for logical grouping of options as well as mutual 
+ * exclusion or to make some options mandatory.
+ *
+ * See @link OptionGroupFlags
+ */
 struct OptionGroup {
 	const char *desc;
 	std::uint32_t flags;
@@ -52,6 +61,9 @@ struct OptionGroup {
 	OptionGroup (const char *desc, unsigned int pFlags = 0) : desc(desc), flags(pFlags) { }
 };
 
+/**
+ * @brief Contains description as well as additional information about a single program option
+ */
 struct OptionDesc {
 	const char *name, *description;
 	const char * const *enumeration_values;
@@ -64,12 +76,20 @@ struct OptionDesc {
 	  : name(NULL), description(desc), enumeration_values(NULL), assignedGroup(NULL),
 	    depends_on(0), flags(flags), shortOption(shortOpt) { }
 	
+	/// @brief 'Name' of option (the long form of the option from the command line) can be manually overriden here.\n
+	/// This is useful if the generated attribute is named differently from the command-line option because of technical reasons
+	/// (e.g.: Multiple words on the cmdline are normally separated with hyphens (some-option), but the attribute name must be a valid C++ identifier,
+	// which does not allow hyphens. Underscores can be used for the attribute, and the cmdline name can be set here.
 	OptionDesc &setName (const char *name) { if (!this->name) { this->name = name; } return *this; }
+	/// @brief Enumerations can be used if an option argument shall be selected from a given set of values
 	OptionDesc &setEnum (const char * const * const enum_values) {enumeration_values = enum_values; return *this; }
+	/// @brief Establish dependency from this option to another option. Don't call this method directly; Use the @link XE_DEPEND_ON macro instead.
 	OptionDesc &dependOn (int64_t option_bit) { depends_on |= option_bit; return *this; }
+	/// @brief Assign this attribute into an @link OptionGroup
 	OptionDesc &group (const OptionGroup &grp) { this->assignedGroup = &grp; return *this; }
 };
 
+/// @brief Thrown if a mandatory option is not given on the command line
 struct RequiredArgumentMissing : public std::exception
 {
 	RequiredArgumentMissing (const char *arg) : arg(arg) { s = "Missing required argument '"; s+= arg; s += "'"; }
@@ -80,11 +100,13 @@ struct RequiredArgumentMissing : public std::exception
 	std::string s;
 };
 
+/// @brief Generic exception if argument parsing failed because of a user-error.
 struct ArgumentParserError : public std::runtime_error
 {
 	ArgumentParserError (const std::string &s) : runtime_error(s) { }
 };
 
+/// @brief Structure used to control information about the application (it's name, version, and customization of it's help text)
 struct AppInformation
 {
 	unsigned int programOptions;
@@ -99,8 +121,10 @@ struct AppInformation
 	AppInformation &setUsage (const char *txt) { usage = txt; return *this; }
 };
 
+/// @brief Internal base class all parser classes use
 struct OptionParserBase
 {
+	/// @brief Internal helper class to create help pages
 	struct HelpPrinter {
 		template<class T> void operator() (const OptionDesc &desc, const T &v, const T &d);
 		
@@ -111,12 +135,14 @@ struct OptionParserBase
 		const OptionGroup *lastGroup;
 	};
 	
+	/// @brief Result value of parsing a list of arguments
 	enum ParseResult {
 		PARSE_OK = 1,
-		/// --help or --version was given; Action was taken. App should terminate.
+		/// @brief --help or --version was given; Action was taken. App should terminate.
 		PARSE_TERMINATE = 2,
 	};
 	
+	/// @brief Generate help page to out
 	virtual void printHelp (std::ostream &out, bool full, const AppInformation &appInfo) = 0;
 protected:
 	void printHelpHead (std::ostream &out, const AppInformation &appInfos);
@@ -131,7 +157,9 @@ protected:
 	virtual void _opt_enumerateGroups (const OptionGroup **&groups, unsigned int maxGroups) = 0;
 };
 
-/// @brief Contains all the parsing functions for each type. Can be extended by the user.
+/**
+ * @brief Contains all the parsing functions for each type. Can be extended by the user to provide support for custom/additional types.
+ */
 namespace ParseFunctions {
 	typedef OptionParserBase::HelpPrinter OHP;
 	
@@ -143,6 +171,7 @@ namespace ParseFunctions {
 	void parse ( bool &p, const char *argValue, const OptionDesc &desc );
 	
 #ifndef ARGUMENT_PARSER_NO_STL_SUPPORT
+	/// Support for any vector of any type. Use push_back
 	template<class T, class Alloc>
 	void parse ( std::vector<T, Alloc> &p, const char *argValue, const OptionDesc &desc ) {
 		T val;
@@ -174,7 +203,11 @@ void OptionParserBase::HelpPrinter::operator() (const OptionDesc &desc, const T 
 }
 
 /**
- * @brief Main macro to define list of program options
+ * @brief Main macro to define list of program options.
+ * 
+ * First parameter shall be the name of the option structure to be declared;
+ * Second parameter shall be the name of a macro taking one parameter.
+ * The list shall use that parameter (which is a macro again) to generate it's list of program options.
  */
 #define XE_DECLARE_PROGRAM_OPTIONS(OPTIONS_CLASS_NAME, OPTION_LIST_MACRO_NAME)      \
 struct OPTIONS_CLASS_NAME##_Parser; \
@@ -231,6 +264,8 @@ protected:     \
 
 /**
  * @brief Provide parser implementation code for program options
+ * 
+ * Takes the same parameters as the @link XE_DECLARE_PROGRAM_OPTIONS macro
  */
 #define XE_DEFINE_PROGRAM_OPTIONS_IMPL(OPTIONS_CLASS_NAME, OPTION_LIST_MACRO_NAME)     \
 bool OPTIONS_CLASS_NAME##_Parser::_opt_parseLongArgument (const char *argName, const char *argValue, OptionDesc *selectedArg, const int parseFlags) {      \
@@ -267,8 +302,10 @@ void OPTIONS_CLASS_NAME##_Parser::_opt_enumerateGroups (const Xenon::ArgumentPar
 	OPTION_LIST_MACRO_NAME(XE_ARG_VISIT_GROUPS)      \
 }
 
+/// @brief Convenience macro to declare an @link OptionGroup
 #define XE_DECLARE_OPTIONS_GROUP(GROUP_NAME, GROUP_DESC, GROUP_FLAGS) const Xenon::ArgumentParser::OptionGroup GROUP_NAME (GROUP_DESC, GROUP_FLAGS);
 
+/// @brief Declare dependency on an option. To be used like: DEF(name, type, OptionDesc(desc, ...).XE_DEPEND_ON( dependent_option )
 #define XE_DEPEND_ON(OPTION_NAME) dependOn ( (1U << _XE_OPT_DATA::PARAM_##OPTION_NAME) )
 
 #define _OPTIONS_xstr(s) str(s)

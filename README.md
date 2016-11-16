@@ -76,7 +76,7 @@ Some features this OptionParser provides:
 - Hidden options, only visible with --full-help (or not at all, if generation of --full-help is suppressed)
 - Integrated support for options of these types: std::string, const char *, int, float, bool and vectors of any defined type.
 - Extensibility for custom types: If you need custom times (for example, dates or timestamps)
-  you can simple extend the namespace containing the parsing routines, and then define your options with your own, new types.
+  you can simply extend the namespace containing the parsing routines, and then define your options with your own, new types.
 
 Example of a generated help page:
 ```

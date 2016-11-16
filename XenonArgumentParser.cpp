@@ -216,16 +216,20 @@ OptionParserBase::ParseResult OptionParserBase::parse (int argc, char **argv, co
 				assert (selectedArg.description != NULL);
 				if ((pflags & PARSE_IS_NEXT_ARG) && !(selectedArg.flags & Options_Flag)) // Does consume additional arg
 					++iArg;
-			} else if ( (appInfos.programOptions & NoHelp) == 0 && strcmp (thisArg, "help") == 0) {
+			}
+			else if ( (appInfos.programOptions & NoHelp) == 0 && strcmp (thisArg, "help") == 0) {
 				printHelp (std::cout, false, appInfos);
 				return PARSE_TERMINATE;
-			} else if ( (appInfos.programOptions & NoHelp) == 0 && strcmp (thisArg, "full-help") == 0) {
+			}
+			else if ( (appInfos.programOptions & NoHelp) == 0 && strcmp (thisArg, "full-help") == 0) {
 				printHelp (std::cout, (appInfos.programOptions & HideHidden) == 0, appInfos);
 				return PARSE_TERMINATE;
-			} else if ( (appInfos.programOptions & NoVersion) == 0 && strcmp (thisArg, "version") == 0) {
+			}
+			else if ( (appInfos.programOptions & NoVersion) == 0 && strcmp (thisArg, "version") == 0) {
 				std::cout << appInfos.programName << " - " << appInfos.programVersion << std::endl;
 				return PARSE_TERMINATE;
-			} else {
+			}
+			else {
 				if (!(appInfos.programOptions & IgnoreUnknown))
 					throw ArgumentParserError(std::string("Unknown argument: ") + thisArg);
 			}
@@ -241,7 +245,8 @@ OptionParserBase::ParseResult OptionParserBase::parse (int argc, char **argv, co
 					++iArg;
 			}
 			else {
-				for (const char *s = &thisArg[1]; *s; ++s) {
+				for (const char *s = &thisArg[1]; *s; ++s)
+				{
 					OptionDesc selectedArg (NULL, 0);
 					if (!_opt_parseShortArgument (*s, NULL, &selectedArg)) {
 						if (!(appInfos.programOptions & IgnoreUnknown))
@@ -261,9 +266,11 @@ OptionParserBase::ParseResult OptionParserBase::parse (int argc, char **argv, co
 			evalSelectedOption (selectedArg, nActiveGroupOtions, groups, lastGroupPtr - &groups[0]);
 	}
 	this->_opt_checkArguments(argv, numPositionalArgs, positionalArgs, appInfos);
-	for (const OptionGroup **g = &groups[0]; g < lastGroupPtr; ++g) {
+	for (const OptionGroup **g = &groups[0]; g < lastGroupPtr; ++g)
+	{
 		if ( (*g)->flags & Group_Required && nActiveGroupOtions[ g - &groups[0] ] < 1)
 			throw ArgumentParserError(std::string("No option chosen for mandatory OptionGroup '") + (*g)->desc + "'");
+		
 		if ( (*g)->flags & Group_Exclusive && nActiveGroupOtions[ g - &groups[0] ] > 1)
 			throw ArgumentParserError(std::string("Only one option may be chosen for OptionGroup '") + (*g)->desc + "'");
 	}
