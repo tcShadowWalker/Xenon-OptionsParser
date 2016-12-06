@@ -190,6 +190,7 @@ OptionParserBase::ParseResult OptionParserBase::parse (int argc, char **argv, co
 	}
 	
 	uint32_t numPositionalArgs = 0U;
+	bool evalArgs = true;
 	for (int iArg = 1; iArg < argc; ++iArg)
 	{
 		const char *thisArg = argv[iArg];
@@ -197,8 +198,12 @@ OptionParserBase::ParseResult OptionParserBase::parse (int argc, char **argv, co
 			throw ArgumentParserError("Invalid argument syntax");
 		
 		OptionDesc selectedArg (NULL, 0);
-		if (thisArg[0] == '-' && thisArg[1] == '-') // Long option
+		if (evalArgs && thisArg[0] == '-' && thisArg[1] == '-') // Long option
 		{
+			if (thisArg[2] == '\0') {
+				evalArgs = false; // Only positional args will follow
+				continue;
+			}
 			thisArg += 2;
 			const char *sepPos = strchr (thisArg, '=');
 			if (sepPos && (sepPos - thisArg) < maxArgLen) {
@@ -233,7 +238,7 @@ OptionParserBase::ParseResult OptionParserBase::parse (int argc, char **argv, co
 				if (!(appInfos.programOptions & IgnoreUnknown))
 					throw ArgumentParserError(std::string("Unknown argument: ") + thisArg);
 			}
-		} else if (thisArg[0] == '-' && thisArg[1] != '-' && thisArg[1] != '\0') // Short option
+		} else if (evalArgs && thisArg[0] == '-' && thisArg[1] != '-' && thisArg[1] != '\0') // Short option
 		{
 			if (thisArg[2] == '\0') { // one short-hand argument. MAY Have a parameter
 				const char *argValue = (argc > iArg+1) ? argv[iArg+1] : NULL;
