@@ -48,9 +48,9 @@ template<class T> void print (std::ostream &s, const std::vector<T> &vec) {
 
 #define PRINT_MY_OPTION(arg, type, desc, def) \
 	if (!opt.has_##arg()) \
-		std::cout << "'" << _OPTIONS_str(arg) << "' not given - assigned default value: "; \
+		std::cout << "'" << _XE_OPTIONS_str(arg) << "' not given - assigned default value: "; \
 	else \
-		std::cout << "'" _OPTIONS_str(arg) << "' = "; \
+		std::cout << "'" _XE_OPTIONS_str(arg) << "' = "; \
 	print(std::cout, opt.arg); \
 	std::cout << "\n";  
 

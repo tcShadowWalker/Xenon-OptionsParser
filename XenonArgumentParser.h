@@ -308,8 +308,7 @@ void OPTIONS_CLASS_NAME##_Parser::_opt_enumerateGroups (const Xenon::ArgumentPar
 /// @brief Declare dependency on an option. To be used like: DEF(name, type, OptionDesc(desc, ...).XE_DEPEND_ON( dependent_option )
 #define XE_DEPEND_ON(OPTION_NAME) dependOn ( (1U << _XE_OPT_DATA::PARAM_##OPTION_NAME) )
 
-#define _OPTIONS_xstr(s) str(s)
-#define _OPTIONS_str(s) #s
+#define _XE_OPTIONS_str(s) #s
 
 /// PRIVATE:
 #define XE_ARG_PARSE_OPTIONS_DEF_MEMBER(var_name, type, desc, def) type var_name; \
@@ -317,15 +316,15 @@ void OPTIONS_CLASS_NAME##_Parser::_opt_enumerateGroups (const Xenon::ArgumentPar
 
 #define XE_ARG_PARSE_OPTIONS_DEF_FLAG(var_name, type, desc, def) PARAM_##var_name,
 
-#define XE_ARG_PARSE_OPTIONS_DEF_OPERATION(var_name, type, desc, def) _opt_f( (desc).setName(_OPTIONS_str(var_name)), this->var_name, (type const &) (def));
+#define XE_ARG_PARSE_OPTIONS_DEF_OPERATION(var_name, type, desc, def) _opt_f( (desc).setName(_XE_OPTIONS_str(var_name)), this->var_name, (type const &) (def));
 
 #define XE_ARG_PARSE_OPTIONS_INIT_VAL(var_name, type, desc, def) , var_name(def)
 
 #define XE_ARG_PARSE_OPTIONS_DEF_DO_PARSE(var_name, type, desc, def) \
-	if ( strcmp (argName, (desc).setName( _OPTIONS_str(var_name)).name) == 0) { \
+	if ( strcmp (argName, (desc).setName( _XE_OPTIONS_str(var_name)).name) == 0) { \
 		if ( (parseFlags & PARSE_IS_NEXT_ARG) && ((desc).flags & Options_Flag)) \
 			argValue = NULL; \
-		ParseFunctions::parse ( this->data->var_name, argValue, (desc).setName( _OPTIONS_str(var_name))); \
+		ParseFunctions::parse ( this->data->var_name, argValue, (desc).setName( _XE_OPTIONS_str(var_name))); \
 		this->data->setParameters |= (1U << this->data->PARAM_##var_name); \
 		*selectedArg = desc; \
 	} else
@@ -334,7 +333,7 @@ void OPTIONS_CLASS_NAME##_Parser::_opt_enumerateGroups (const Xenon::ArgumentPar
 	if ( arg == (desc).shortOption ) { \
 		if (((desc).flags & Options_Flag)) \
 			argValue = NULL; \
-		ParseFunctions::parse ( this->data->var_name, argValue, (desc).setName( _OPTIONS_str(var_name) ) ); \
+		ParseFunctions::parse ( this->data->var_name, argValue, (desc).setName( _XE_OPTIONS_str(var_name) ) ); \
 		this->data->setParameters |= (1U << this->data->PARAM_##var_name); \
 		*selectedArg = desc; \
 	} else
@@ -342,16 +341,16 @@ void OPTIONS_CLASS_NAME##_Parser::_opt_enumerateGroups (const Xenon::ArgumentPar
 #define XE_ARG_PARSE_OPTIONS_POSITIONAL_ARGUMENTS(var_name, type, desc, def) \
 	if ((((desc).flags) & Options_Positional) && (!data->has_##var_name() || ((desc).flags & Options_Multiple)) && _opt_nextPositionalArg < _opt_numPositionalArgs) { \
 		do { \
-			ParseFunctions::parse ( this->data->var_name, _opt_argv[_opt_positionalArgs[_opt_nextPositionalArg++]], (desc).setName( _OPTIONS_str(var_name) ) ); \
+			ParseFunctions::parse ( this->data->var_name, _opt_argv[_opt_positionalArgs[_opt_nextPositionalArg++]], (desc).setName( _XE_OPTIONS_str(var_name) ) ); \
 		} while ((_opt_nextPositionalArg < _opt_numPositionalArgs) && ((desc).flags & Options_Multiple)); \
 		this->data->setParameters |= (1U << this->data->PARAM_##var_name); \
 	} \
 
 #define XE_ARG_PARSE_OPTIONS_CHECK_ARGUMENTS(var_name, type, macro_desc, def) \
 	{ \
-		OptionDesc &odesc = (macro_desc).setName( _OPTIONS_str(var_name) ); \
+		OptionDesc &odesc = (macro_desc).setName( _XE_OPTIONS_str(var_name) ); \
 		if (((odesc.flags) & Options_Required) && !data->has_##var_name()) { \
-			throw RequiredArgumentMissing( _OPTIONS_str(var_name) ); \
+			throw RequiredArgumentMissing( _XE_OPTIONS_str(var_name) ); \
 		} \
 		if ( data->has_##var_name() && (odesc.depends_on & ~this->data->setParameters )) { \
 			throw ArgumentParserError ( std::string("OptionsParser: Option '") + std::string(odesc.name) + "' depends on options that are not given"); \
